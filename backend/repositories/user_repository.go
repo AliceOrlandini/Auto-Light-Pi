@@ -1,55 +1,70 @@
 package repositories
 
 import (
+	"context"
 	"database/sql"
+
+	"errors"
 
 	"github.com/AliceOrlandini/Auto-Light-Pi/models"
 )
 
-type UserRepository interface {
-	Create(user *models.User) error
-	GetByEmail(email string) (*models.User, error)
-	GetByUsername(username string) (*models.User, error)
-}
+var (
+	ErrUserNotFound = errors.New("user not found")
+	ErrUserInvalidCredentials = errors.New("invalid user credentials")
+	ErrUserAlreadyExists = errors.New("user already exists")
+)
 
 type userRepository struct {
 	db *sql.DB
 }
 
-func NewUserRepository(db *sql.DB) UserRepository {
+func NewUserRepository(db *sql.DB) *userRepository {
 	return &userRepository{db: db}
 }
 
-func (r *userRepository) Create(user *models.User) error {
-	query := "INSERT INTO user_account(id, username, email, password) VALUES($1, $2, $3, $4)"
-	_, err := r.db.Exec(query, user.Id, user.Username, user.Email, user.Password)
+func (r *userRepository) CreateOne(ctx context.Context, user *models.User) error {
+	query := `
+		INSERT INTO user_account(id, username, email, password) 
+		VALUES($1, $2, $3, $4)
+	`
+	_, err := r.db.ExecContext(ctx, query, user.ID, user.Username, user.Email, user.Password)
 	return err
 }
 
-func (r *userRepository) GetByEmail(email string) (*models.User, error) {
+func (r *userRepository) GetOneByEmail(ctx context.Context, email string) (*models.User, error) {
 	query := `
 		SELECT id, username, email, password 
 		FROM user_account 
 		WHERE email = $1;
 	`
-	row := r.db.QueryRow(query, email)
+	row := r.db.QueryRowContext(ctx, query, email)
 
 	var user models.User
-	err := row.Scan(&user.Id, &user.Username, &user.Email, &user.Password)
+	err := row.Scan(&user.ID, &user.Username, &user.Email, &user.Password)
 	if err != nil {
-		// gestisci gli erroriiiiiiii Kevin <3
-		return nil, nil
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
 	}
 	return &user, nil
 }
 
-func (r *userRepository) GetByUsername(username string) (*models.User, error) {
-	query := "SELECT id, username, email, password FROM user_account WHERE username = $1"
-	row := r.db.QueryRow(query, username)
+func (r *userRepository) GetOneByUsername(ctx context.Context, username string) (*models.User, error) {
+	query := `
+		SELECT id, username, email, password 
+		FROM user_account 
+		WHERE username = $1
+	`
+	row := r.db.QueryRowContext(ctx, query, username)
 
 	var user models.User
-	err := row.Scan(&user.Id, &user.Username, &user.Email, &user.Password)
+	err := row.Scan(&user.ID, &user.Username, &user.Email, &user.Password)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return &user, nil
