@@ -17,5 +17,5 @@ func main() {
 	if err != nil {
 		panic("failed to initialize server: " + err.Error())
 	}
-  app.Run(":" + port)
+  app.Run("0.0.0.0:" + port)
 }
