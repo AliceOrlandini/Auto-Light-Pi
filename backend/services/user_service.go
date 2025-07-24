@@ -35,7 +35,7 @@ func NewUserService(repo UserRepository) *userService {
 	}
 }
 
-func (s *userService) Register(ctx context.Context, username string, email string, password []byte) error {
+func (s *userService) Register(ctx context.Context, username string, email string, password []byte, name string, surname string) error {
 	// first check if the email already exists
 	emailAlreadyExists, err := s.repo.GetOneByEmail(ctx, email)
 	if err != nil {
@@ -68,6 +68,8 @@ func (s *userService) Register(ctx context.Context, username string, email strin
 		Username: username,
 		Email: email,
 		Password: password,
+		Name: name,
+		Surname: surname,
 	}
 
 	return s.repo.CreateOne(ctx, user)

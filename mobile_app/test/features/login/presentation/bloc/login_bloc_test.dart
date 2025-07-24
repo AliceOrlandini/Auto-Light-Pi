@@ -134,7 +134,12 @@ void main() {
           mockAuthenticationBloc,
           Stream<AuthenticationState>.fromIterable(<AuthenticationState>[
             const AuthenticationState.authenticated(
-              UserEntity(name: 'Alice', surname: 'Smith'),
+              UserEntity(
+                username: 'alice',
+                email: 'alice@gmail.com',
+                name: 'Alice',
+                surname: 'Smith',
+              ),
             ),
           ]),
           initialState: const AuthenticationState.unknown(),

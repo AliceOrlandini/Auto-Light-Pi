@@ -13,7 +13,7 @@ import (
 )
 
 type UserService interface {
-	Register(ctx context.Context, username string, email string, password []byte) error
+	Register(ctx context.Context, username string, email string, password []byte, name string, surname string) error
 	LoginByUsername(ctx context.Context, username string, password []byte) (*models.User, error) 
 	LoginByEmail(ctx context.Context, email string, password []byte) (*models.User, error) 
 	GenerateJWT(user *models.User) (string, error)
@@ -31,6 +31,8 @@ type RegisterRequest struct {
 	Username string `json:"username" binding:"required,max=50"`
 	Email string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,min=8"`
+	Name string `json:"name" binding:"required,max=50"`
+	Surname string `json:"surname" binding:"required,max=50"`
 }
 
 type LoginByUsernameRequest struct {
@@ -61,7 +63,13 @@ func (uc *UserController) Register(c *gin.Context) {
 	// 1. if the user already exists (from the service layer)
 	// 2. db errors 
 	// 3. context cancelled or timeouted
-	err = uc.Service.Register(ctx, request.Username, request.Email, []byte(request.Password))
+	err = uc.Service.Register(ctx, 
+		request.Username, 
+		request.Email, 
+		[]byte(request.Password),
+		request.Name,
+		request.Surname,
+	)
 	if err != nil {
 		if errors.Is(err, services.ErrUserAlreadyExists) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

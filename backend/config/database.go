@@ -29,5 +29,16 @@ func InitDB() error {
 	}
 
 	DB = psqlDB
+
+	// read from the filesystem the database schema and execute it
+	content, err := os.ReadFile("schema.sql")
+  if err != nil {
+    return err
+  }
+	_, err = DB.Exec(string(content))
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

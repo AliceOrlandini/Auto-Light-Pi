@@ -33,7 +33,7 @@ void init() async {
 
   /** Presentation **/
   sl.registerFactory(() => LoginBloc(authenticationBloc: sl()));
-  sl.registerFactory(() => AuthenticationBloc(loginUseCase: sl()));
+  sl.registerLazySingleton(() => AuthenticationBloc(loginUseCase: sl()));
 
   await sl.allReady();
 }

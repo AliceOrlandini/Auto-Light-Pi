@@ -1,6 +1,5 @@
 import 'package:auto_light_pi/di/di.dart' as di;
 import 'package:auto_light_pi/features/authentication/presentation/bloc/authentication_bloc.dart';
-import 'package:auto_light_pi/features/authentication/presentation/bloc/authentication_event.dart';
 import 'package:flutter/material.dart';
 import 'package:auto_light_pi/navigation/routes.dart';
 import 'package:auto_light_pi/core/theme/app_theme.dart';
@@ -15,7 +14,8 @@ class App extends StatelessWidget {
     return MultiBlocProvider(
       providers: <SingleChildWidget>[
         BlocProvider<AuthenticationBloc>(
-          create: (_) => di.sl<AuthenticationBloc>()..add(AuthCheckRequest()),
+          create: (_) =>
+              di.sl<AuthenticationBloc>(), //TODO ..add(AuthCheckRequest()),
         ),
       ],
       child: MaterialApp.router(
