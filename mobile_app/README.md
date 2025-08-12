@@ -75,12 +75,21 @@ External communication layer and HTTP interceptors:
 ### 4. `navigation/`
 App navigation routes and router configuration.
 
+<<<<<<< HEAD
 ### 5. `features/`
 "A feature is what the user does and not what the user sees.". The components of a feature are organized into three layers:
 - **`data/`**
   Handles all data operations:
   - **`models/`**: Define classes for JSON serialization and deserialization.
   - **`data_sources/`**: Provide methods to fetch or persist data (using the network class).
+=======
+### 5. `features/`  
+"A feature is what the user does and not what the user sees.". The components of a feature are organized into three layers:
+- **`data/`**  
+  Handles all data operations:  
+  - **`models/`**: Define classes for JSON serialization and deserialization.  
+  - **`data_sources/`**: Provide methods to fetch or persist data (using the network class).  
+>>>>>>> 0462f6b (Updated README.md)
   - **`repositories/`**: Implement domain repository interfaces, mapping external data formats into domain models.
 
 - **`domain/`**
@@ -91,9 +100,15 @@ App navigation routes and router configuration.
 
 - **`presentation/`**
   Manages state and UI for the feature:
+<<<<<<< HEAD
   - **`bloc/`**: Implements the BLoC pattern.
   - **`screens/`**: High-level widgets composing each screen.
   - **`widgets/`**: Small, feature-specific UI components (custom buttons, cards, forms fields).
+=======
+  - **`bloc/`**: Implements the BLoC pattern.  
+  - **`screens/`**: High-level widgets composing each screen.  
+  - **`widgets/`**: Small, feature-specific UI components (custom buttons, cards, forms).
+>>>>>>> 0462f6b (Updated README.md)
 
 ## Development
 
