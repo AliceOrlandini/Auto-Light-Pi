@@ -1,6 +1,54 @@
-## Mobile App Project Structure
+# Auto Light Pi
 
+Auto Light Pi is a cross-platform Flutter application designed to control and monitor your lighting system.
+
+## Features
+The features implemented *until now* include:
+- **User Authentication**: Secure login and registration with form validation.
+- **State Management**: Uses Bloc for predictable state management.
+- **Secure Storage**: Stores sensitive data securely on device.
+- **REST API Integration**: Communicates with a backend server for authentication and device data.
+
+## Getting Started
+
+### Prerequisites
+
+- [Flutter SDK](https://flutter.dev/docs/get-started/install) (version 3.0 or higher recommended)
+- [Dart SDK](https://dart.dev/get-dart)
+- A running instance of the Auto Light Pi backend (see backend documentation)
+
+### Installation
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/AliceOrlandini/Auto-Light-Pi.git
+   cd auto-light-pi/mobile_app
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   flutter pub get
+   ```
+
+4. **Run the app:**
+     ```bash
+     flutter run
+     ```
+
+## Project Structure
 All Dart source files live under `lib/`, organized into the following directories:
+```
+lib/
+  app.dart                # App root and providers
+  main.dart               # Entry point
+  core/                   # Core utilities, theme, widgets, network, storage
+  features/               # Feature modules (authentication, device, etc.)
+  navigation/             # App routing
+  di/                     # Dependency injection setup
+assets/                   # Images, fonts, icons
+test/                     # Unit and widget tests
+```
+In particular:
 
 ### 1. `core/`
 Shared resources and utilities used across the entire app:
@@ -28,7 +76,7 @@ External communication layer and HTTP interceptors:
 App navigation routes and router configuration.
 
 ### 5. `features/`  
-Each feature follows a **clean architecture** structure:
+"A feature is what the user does and not what the user sees.". The components of a feature are organized into three layers:
 - **`data/`**  
   Handles all data operations:  
   - **`models/`**: Define classes for JSON serialization and deserialization.  
@@ -46,3 +94,21 @@ Each feature follows a **clean architecture** structure:
   - **`bloc/`**: Implements the BLoC pattern.  
   - **`screens/`**: High-level widgets composing each screen.  
   - **`widgets/`**: Small, feature-specific UI components (custom buttons, cards, forms).
+
+## Development
+
+- **State Management:** [flutter_bloc](https://pub.dev/packages/flutter_bloc)
+- **Dependency Injection:** [get_it](https://pub.dev/packages/get_it)
+- **Networking:** [dio](https://pub.dev/packages/dio)
+- **Secure Storage:** [flutter_secure_storage](https://pub.dev/packages/flutter_secure_storage)
+- **Routing:** [go_router](https://pub.dev/packages/go_router)
+
+## Running Tests
+
+```bash
+flutter test
+```
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](../LICENSE) file for details.
