@@ -7,6 +7,7 @@
 package wire
 
 import (
+	"context"
 	"github.com/AliceOrlandini/Auto-Light-Pi/config"
 	"github.com/AliceOrlandini/Auto-Light-Pi/controllers"
 	"github.com/AliceOrlandini/Auto-Light-Pi/repositories"
@@ -17,8 +18,8 @@ import (
 
 // Injectors from injection.go:
 
-func InitializeServer() (*gin.Engine, error) {
-	db, err := ProvideDB()
+func InitializeServer(ctx context.Context) (*gin.Engine, error) {
+	db, err := ProvidePostgresDB(ctx)
 	if err != nil {
 		return nil, err
 	}

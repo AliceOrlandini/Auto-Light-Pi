@@ -15,15 +15,15 @@ var (
 	ErrUserAlreadyExists = errors.New("user already exists")
 )
 
-type userRepository struct {
+type UserRepository struct {
 	db *sql.DB
 }
 
-func NewUserRepository(db *sql.DB) *userRepository {
-	return &userRepository{db: db}
+func NewUserRepository(db *sql.DB) *UserRepository {
+	return &UserRepository{db: db}
 }
 
-func (r *userRepository) CreateOne(ctx context.Context, user *models.User) error {
+func (r *UserRepository) CreateOne(ctx context.Context, user *models.User) error {
 	query := `
 		INSERT INTO user_account(id, username, email, password, name, surname) 
 		VALUES($1, $2, $3, $4, $5, $6)
@@ -32,7 +32,7 @@ func (r *userRepository) CreateOne(ctx context.Context, user *models.User) error
 	return err
 }
 
-func (r *userRepository) GetOneByEmail(ctx context.Context, email string) (*models.User, error) {
+func (r *UserRepository) GetOneByEmail(ctx context.Context, email string) (*models.User, error) {
 	query := `
 		SELECT id, username, email, password, name, surname
 		FROM user_account 
@@ -51,7 +51,7 @@ func (r *userRepository) GetOneByEmail(ctx context.Context, email string) (*mode
 	return &user, nil
 }
 
-func (r *userRepository) GetOneByUsername(ctx context.Context, username string) (*models.User, error) {
+func (r *UserRepository) GetOneByUsername(ctx context.Context, username string) (*models.User, error) {
 	query := `
 		SELECT id, username, email, password, name, surname
 		FROM user_account 

@@ -25,17 +25,17 @@ type UserRepository interface {
 	GetOneByUsername(ctx context.Context, username string) (*models.User, error)
 }
 
-type userService struct {
+type UserService struct {
 	repo UserRepository
 }
 
-func NewUserService(repo UserRepository) *userService {
-	return &userService{
+func NewUserService(repo UserRepository) *UserService {
+	return &UserService{
 		repo: repo,
 	}
 }
 
-func (s *userService) Register(ctx context.Context, username string, email string, password []byte, name string, surname string) error {
+func (s *UserService) Register(ctx context.Context, username string, email string, password []byte, name string, surname string) error {
 	// first check if the email already exists
 	emailAlreadyExists, err := s.repo.GetOneByEmail(ctx, email)
 	if err != nil {
@@ -75,7 +75,7 @@ func (s *userService) Register(ctx context.Context, username string, email strin
 	return s.repo.CreateOne(ctx, user)
 }
 
-func (s *userService) LoginByUsername(ctx context.Context, username string, password []byte) (*models.User, error) {
+func (s *UserService) LoginByUsername(ctx context.Context, username string, password []byte) (*models.User, error) {
 	user, err := s.repo.GetOneByUsername(ctx, username)
 	// if there is an error than it is an internal server error
 	// since is db releted 
@@ -100,7 +100,7 @@ func (s *userService) LoginByUsername(ctx context.Context, username string, pass
 	return user, nil
 }
 
-func (s *userService) LoginByEmail(ctx context.Context, email string, password []byte) (*models.User, error) {
+func (s *UserService) LoginByEmail(ctx context.Context, email string, password []byte) (*models.User, error) {
 	user, err := s.repo.GetOneByEmail(ctx, email)
 	if err != nil {
 		return nil, err
@@ -120,7 +120,7 @@ func (s *userService) LoginByEmail(ctx context.Context, email string, password [
 	return user, nil
 }
 
-func (s *userService) GenerateJWT(user *models.User) (string, error) {
+func (s *UserService) GenerateJWT(user *models.User) (string, error) {
 	var secret = []byte(os.Getenv("JWT_SECRET"))
 	var appName = os.Getenv("APPLICATION_NAME")
 

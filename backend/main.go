@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 
 	"github.com/AliceOrlandini/Auto-Light-Pi/wire"
@@ -12,8 +13,9 @@ func init() {
 }
 
 func main() {
+	ctx := context.Background()
 	port := os.Getenv("PORT")
-	app, err := wire.InitializeServer()
+	app, err := wire.InitializeServer(ctx)
 	if err != nil {
 		panic("failed to initialize server: " + err.Error())
 	}

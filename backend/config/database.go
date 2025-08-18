@@ -1,41 +1,69 @@
 package config
 
 import (
+	"context"
 	"database/sql"
 	"os"
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	"github.com/redis/go-redis/v9"
 )
 
-var DB *sql.DB
+var PostgresDB *sql.DB
+var RedisDB *redis.Client
 
-func InitDB() error {
+func InitRedisDB(ctx context.Context) error {
 	err := godotenv.Load()
 	if err != nil {
 		return err
 	}
 
-	DbDsn := os.Getenv("DB_DSN")
+	dbDsn := os.Getenv("REDIS_DB_DSN")
 
-	psqlDB, err := sql.Open("postgres", DbDsn)
+	opt, err := redis.ParseURL(dbDsn)
 	if err != nil {
 		return err
 	}
 
-	err = psqlDB.Ping()
+	rdb := redis.NewClient(opt)
+
+	err = rdb.Ping(ctx).Err()
 	if err != nil {
 		return err
 	}
 
-	DB = psqlDB
+	RedisDB = rdb
+
+	return nil
+}
+
+func InitPosgresDB(ctx context.Context) error {
+	err := godotenv.Load()
+	if err != nil {
+		return err
+	}
+
+	dbDsn := os.Getenv("POSTGRES_DB_DSN")
+
+	psqlDB, err := sql.Open("postgres", dbDsn)
+	if err != nil {
+		return err
+	}
+
+	err = psqlDB.PingContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	PostgresDB = psqlDB
 
 	// read from the filesystem the database schema and execute it
 	content, err := os.ReadFile("schema.sql")
   if err != nil {
     return err
   }
-	_, err = DB.Exec(string(content))
+	_, err = PostgresDB.Exec(string(content))
 	if err != nil {
 		return err
 	}

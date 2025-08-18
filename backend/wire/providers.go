@@ -10,9 +10,12 @@ import (
 )
 
 var ProviderSet = wire.NewSet(
-	ProvideDB,
+	ProvidePostgresDB,
+	ProvideRedisDB,
 	repositories.NewUserRepository,
+	wire.Bind(new(services.UserRepository), new(*repositories.UserRepository)),
 	services.NewUserService,
+	wire.Bind(new(controllers.UserService), new(*services.UserService)),
 	controllers.NewUserController,
 	config.NewInitialization,
 	routes.SetupRoutes,

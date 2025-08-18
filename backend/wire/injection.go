@@ -4,11 +4,13 @@
 package wire
 
 import (
+	"context"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
 )
 
-func InitializeServer() (*gin.Engine, error) {
+func InitializeServer(ctx context.Context) (*gin.Engine, error) {
     wire.Build(ProviderSet)
     return nil, nil
 }
