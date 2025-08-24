@@ -17,7 +17,7 @@ backend/
   repositories/          # Data access layer
   routes/                # API route definitions
   services/              # Business logic layer
-  wire/                  # Dependency injection setup (Google Wire)
+  bootstrap/             # Application bootstrapping
 ```
 
 In particular, the flow of a request through the backend is as follows:
@@ -35,7 +35,7 @@ Request
 - **Repositories**: Abstract database access and queries.
 - **Models**: Define data structures (entities).
 - **Config**: Manage configuration and environment setup.
-- **Wire**: Dependency injection using [Google Wire](https://github.com/google/wire).
+- **Bootstrap**: Application bootstrapping and initialization.
 
 ## Environment Variables
 
@@ -61,13 +61,7 @@ JWT_SECRET="yoursecretkey"
    ```sh
    go mod tidy
    ```
-
-2. **Generate dependency injection code (if you change providers):**
-   ```sh
-   go generate ./wire
-   ```
-
-3. **Run the server:**
+2. **Run the server:**
    ```sh
    go run main.go
    ```

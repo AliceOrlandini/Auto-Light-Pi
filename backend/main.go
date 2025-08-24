@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/AliceOrlandini/Auto-Light-Pi/wire"
+	"github.com/AliceOrlandini/Auto-Light-Pi/bootstrap"
 	"github.com/joho/godotenv"
 )
 
@@ -15,7 +15,7 @@ func init() {
 func main() {
 	ctx := context.Background()
 	port := os.Getenv("PORT")
-	app, err := wire.InitializeServer(ctx)
+	app, err := bootstrap.InitializeServer(ctx)
 	if err != nil {
 		panic("failed to initialize server: " + err.Error())
 	}
