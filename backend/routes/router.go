@@ -15,9 +15,9 @@ func SetupRoutes(init *config.Initialization) *gin.Engine {
 
 	api := router.Group("/api")
 	{
-		api.POST("/register", init.UserController.Register)
-		api.POST("/login/email", init.UserController.LoginByEmail)
-		api.POST("/login/username", init.UserController.LoginByUsername)
+		api.POST("/register", init.AuthController.Register)
+		api.POST("/login/email", init.AuthController.LoginByEmail)
+		api.POST("/login/username", init.AuthController.LoginByUsername)
 
 		auth := api.Group("/")
 		auth.Use(middleware.AuthMiddleware())

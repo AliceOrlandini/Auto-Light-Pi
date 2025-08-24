@@ -9,12 +9,6 @@ import (
 	"github.com/AliceOrlandini/Auto-Light-Pi/models"
 )
 
-var (
-	ErrUserNotFound = errors.New("user not found")
-	ErrUserInvalidCredentials = errors.New("invalid user credentials")
-	ErrUserAlreadyExists = errors.New("user already exists")
-)
-
 type UserRepository struct {
 	db *sql.DB
 }

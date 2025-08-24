@@ -12,19 +12,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type UserService interface {
+type AuthService interface {
 	Register(ctx context.Context, username string, email string, password []byte, name string, surname string) error
 	LoginByUsername(ctx context.Context, username string, password []byte) (*models.User, error) 
 	LoginByEmail(ctx context.Context, email string, password []byte) (*models.User, error) 
 	GenerateJWT(user *models.User) (string, error)
+	GenerateRefreshToken(ctx context.Context, userID string) (*models.RefreshToken, error)
 }
 
-type UserController struct {
-	Service UserService
+type AuthController struct {
+	Service AuthService
 }
 
-func NewUserController(service UserService) *UserController {
-	return &UserController{Service: service}
+func NewAuthController(service AuthService) *AuthController {
+	return &AuthController{Service: service}
 }
 
 type RegisterRequest struct {
@@ -45,7 +46,7 @@ type LoginByEmailRequest struct {
 	Password string `json:"password" binding:"required,min=8"`
 }
 
-func (uc *UserController) Register(c *gin.Context) {
+func (uc *AuthController) Register(c *gin.Context) {
 	ctx := c.Request.Context()
 	var request RegisterRequest
 	err := c.ShouldBindJSON(&request)
@@ -83,7 +84,7 @@ func (uc *UserController) Register(c *gin.Context) {
 			c.JSON(http.StatusRequestTimeout, gin.H{"error": "request timeout"})
 			return
 		}
-		// in case of a db error, I log the error and i return internal server error
+		// in case of a db error, log the error and return internal server error
 		fmt.Printf("Register error: %v\n", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
@@ -91,7 +92,7 @@ func (uc *UserController) Register(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"message": "user registered successfully"})
 }
 
-func (uc *UserController) LoginByUsername(c *gin.Context) {
+func (uc *AuthController) LoginByUsername(c *gin.Context) {
 	ctx := c.Request.Context()
 	var request LoginByUsernameRequest
 	err := c.ShouldBindJSON(&request)
@@ -124,7 +125,7 @@ func (uc *UserController) LoginByUsername(c *gin.Context) {
 		return
 	}
 
-	tokenString, err := uc.Service.GenerateJWT(user)
+	accessToken, err := uc.Service.GenerateJWT(user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
@@ -133,12 +134,28 @@ func (uc *UserController) LoginByUsername(c *gin.Context) {
 	maxAge := 3600
 	c.SetCookie(
 		"jwt",				// name
-		tokenString,	// token
+		accessToken,	// token
 		maxAge,				// validity
 		"/",					// path
 		"",						// domain
-		false,				// secure (HTTPS)
+		true,					// secure (HTTPS)
 		true,					// httpOnly
+	)
+
+	refreshToken, err := uc.Service.GenerateRefreshToken(ctx, user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+
+	c.SetCookie(
+		"__Host-refresh_token",			// name
+		refreshToken.RefreshToken,  // value
+		refreshToken.TTL.Second(),	// validity
+		"/",												// path
+		"",    											// Empty Domain
+		true,  											// Secure (HTTPS)
+		true,  											// HttpOnly
 	)
 
 	c.JSON(http.StatusOK, gin.H{
@@ -147,7 +164,7 @@ func (uc *UserController) LoginByUsername(c *gin.Context) {
 	})
 }
 
-func (uc *UserController) LoginByEmail(c *gin.Context) {
+func (uc *AuthController) LoginByEmail(c *gin.Context) {
 	ctx := c.Request.Context()
 	var request LoginByEmailRequest
 	err := c.ShouldBindJSON(&request)
@@ -197,13 +214,29 @@ func (uc *UserController) LoginByEmail(c *gin.Context) {
 		true,					// httpOnly
 	)
 
+	refreshToken, err := uc.Service.GenerateRefreshToken(ctx, user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+
+	c.SetCookie(
+		"__Host-refresh_token",			// name
+		refreshToken.RefreshToken,  // value
+		refreshToken.TTL.Second(),	// validity
+		"/",												// path
+		"",    											// Empty Domain
+		true,  											// Secure (HTTPS)
+		true,  											// HttpOnly
+	)
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "login successful",
 		"user": user,
 	})
 }
 
-func (uc *UserController) validatePassword(password string) error {
+func (uc *AuthController) validatePassword(password string) error {
 	hasUpper := regexp.MustCompile(`[A-Z]`).MatchString(password)
 	hasNumber := regexp.MustCompile(`[0-9]`).MatchString(password)
 

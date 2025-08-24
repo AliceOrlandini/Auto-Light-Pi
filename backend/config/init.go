@@ -7,18 +7,18 @@ import (
 
 type Initialization struct {
 	UserRepository services.UserRepository
-	UserService controllers.UserService
-	UserController *controllers.UserController
+	AuthService controllers.AuthService
+	AuthController *controllers.AuthController
 }
 
 func NewInitialization(
 	UserRepository services.UserRepository,
-	UserService controllers.UserService,
-	UserController *controllers.UserController,
+	AuthService controllers.AuthService,
+	AuthController *controllers.AuthController,
 ) *Initialization {
 	return &Initialization{
 		UserRepository: UserRepository,
-		UserService: UserService,
-		UserController: UserController,
+		AuthService: AuthService,
+		AuthController: AuthController,
 	}
 }

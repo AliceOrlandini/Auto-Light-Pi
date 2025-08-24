@@ -8,6 +8,7 @@ package wire
 
 import (
 	"context"
+
 	"github.com/AliceOrlandini/Auto-Light-Pi/config"
 	"github.com/AliceOrlandini/Auto-Light-Pi/controllers"
 	"github.com/AliceOrlandini/Auto-Light-Pi/repositories"
@@ -19,14 +20,19 @@ import (
 // Injectors from injection.go:
 
 func InitializeServer(ctx context.Context) (*gin.Engine, error) {
-	db, err := ProvidePostgresDB(ctx)
+	postgresDB, err := ProvidePostgresDB(ctx)
 	if err != nil {
 		return nil, err
 	}
-	userRepository := repositories.NewUserRepository(db)
-	userService := services.NewUserService(userRepository)
-	userController := controllers.NewUserController(userService)
-	initialization := config.NewInitialization(userRepository, userService, userController)
+	redisDB, err := ProvideRedisDB(ctx)
+	if err != nil {
+		return nil, err
+	}
+	userRepository := repositories.NewUserRepository(postgresDB)
+	refreshTokenRepository := repositories.NewRefreshTokenRepository(redisDB)
+	authService := services.NewAuthService(userRepository, refreshTokenRepository)
+	authController := controllers.NewAuthController(authService)
+	initialization := config.NewInitialization(userRepository, authService, authController)
 	engine := routes.SetupRoutes(initialization)
 	return engine, nil
 }
