@@ -3,21 +3,21 @@ package routes
 import (
 	"net/http"
 
-	"github.com/AliceOrlandini/Auto-Light-Pi/config"
-	"github.com/AliceOrlandini/Auto-Light-Pi/middleware"
+	"github.com/AliceOrlandini/Auto-Light-Pi/internal/controllers"
+	"github.com/AliceOrlandini/Auto-Light-Pi/internal/middleware"
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRoutes(init *config.Initialization) *gin.Engine {
+func SetupRoutes(authController *controllers.AuthController) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
 
 	api := router.Group("/api")
 	{
-		api.POST("/register", init.AuthController.Register)
-		api.POST("/login/email", init.AuthController.LoginByEmail)
-		api.POST("/login/username", init.AuthController.LoginByUsername)
+		api.POST("/register", authController.Register)
+		api.POST("/login/email", authController.LoginByEmail)
+		api.POST("/login/username", authController.LoginByUsername)
 
 		auth := api.Group("/")
 		auth.Use(middleware.AuthMiddleware())

@@ -10,14 +10,15 @@ backend/
   main.go                # Application entry point
   .env                   # Environment variables
   schema.sql             # Database schema
-  config/                # Configuration and initialization
-  controllers/           # HTTP controllers (handlers)
-  middleware/            # Middleware (e.g., auth)
-  models/                # Data models (entities)
-  repositories/          # Data access layer
-  routes/                # API route definitions
-  services/              # Business logic layer
-  bootstrap/             # Application bootstrapping
+  internal/
+   config/                # Configuration and initialization
+   controllers/           # HTTP controllers (handlers)
+   middleware/            # Middleware (e.g., auth)
+   models/                # Data models (entities)
+   repositories/          # Data access layer
+   routes/                # API route definitions
+   services/              # Business logic layer
+   bootstrap/             # Application bootstrapping
 ```
 
 In particular, the flow of a request through the backend is as follows:

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/AliceOrlandini/Auto-Light-Pi/models"
+	"github.com/AliceOrlandini/Auto-Light-Pi/internal/models"
 	"github.com/redis/go-redis/v9"
 )
 

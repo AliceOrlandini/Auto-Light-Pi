@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"regexp"
 
-	"github.com/AliceOrlandini/Auto-Light-Pi/models"
-	"github.com/AliceOrlandini/Auto-Light-Pi/services"
+	"github.com/AliceOrlandini/Auto-Light-Pi/internal/models"
+	"github.com/AliceOrlandini/Auto-Light-Pi/internal/services"
 	"github.com/gin-gonic/gin"
 )
 

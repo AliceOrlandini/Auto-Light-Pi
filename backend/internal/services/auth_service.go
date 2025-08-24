@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AliceOrlandini/Auto-Light-Pi/models"
+	"github.com/AliceOrlandini/Auto-Light-Pi/internal/models"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"

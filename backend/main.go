@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/AliceOrlandini/Auto-Light-Pi/bootstrap"
+	"github.com/AliceOrlandini/Auto-Light-Pi/internal/bootstrap"
 	"github.com/joho/godotenv"
 )
 

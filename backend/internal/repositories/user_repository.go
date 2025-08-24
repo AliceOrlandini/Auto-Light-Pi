@@ -6,7 +6,7 @@ import (
 
 	"errors"
 
-	"github.com/AliceOrlandini/Auto-Light-Pi/models"
+	"github.com/AliceOrlandini/Auto-Light-Pi/internal/models"
 )
 
 type UserRepository struct {
