@@ -1,4 +1,4 @@
-package repositories
+package refresh_token
 
 import (
 	"context"
@@ -13,15 +13,15 @@ var (
 	ErrTokenHashNotFound = errors.New("token hash not found")
 )
 
-type RefreshTokenRepository struct {
+type repository struct {
 	db *redis.Client
 }
 
-func NewRefreshTokenRepository(db *redis.Client) *RefreshTokenRepository {
-	return &RefreshTokenRepository{db: db}
+func NewRefreshTokenRepository(db *redis.Client) *repository {
+	return &repository{db: db}
 }
 
-func (r *RefreshTokenRepository) CreateOne(ctx context.Context, refreshToken *models.RefreshToken) error {
+func (r *repository) CreateOne(ctx context.Context, refreshToken *models.RefreshToken) error {
 	// we will save two records:
 	// 1. rth:{tokenHash} -> userId used as lookup when a new request comes in
 	// 2. rtu:{userId} -> {tokenHash} used for the revocation of the token
@@ -62,7 +62,7 @@ func (r *RefreshTokenRepository) CreateOne(ctx context.Context, refreshToken *mo
 	return nil
 }
 
-func (r *RefreshTokenRepository) GetOneUserIDByTokenHash(ctx context.Context, tokenHash string) (string, error) {
+func (r *repository) GetOneUserIDByTokenHash(ctx context.Context, tokenHash string) (string, error) {
 	rtKey := "rth:" + tokenHash
 	userId, err := r.db.Get(ctx, rtKey).Result()
 	if err != nil {
@@ -74,7 +74,7 @@ func (r *RefreshTokenRepository) GetOneUserIDByTokenHash(ctx context.Context, to
 	return userId, nil
 }
 
-func (r *RefreshTokenRepository) GetOneTokenHashByUserID(ctx context.Context, userID string) (string, error) {
+func (r *repository) GetOneTokenHashByUserID(ctx context.Context, userID string) (string, error) {
 	rtuKey := "rtu:" + userID
 	tokenHash, err := r.db.Get(ctx, rtuKey).Result()
 	if err != nil {
@@ -86,7 +86,7 @@ func (r *RefreshTokenRepository) GetOneTokenHashByUserID(ctx context.Context, us
 	return tokenHash, nil
 }
 
-func (r *RefreshTokenRepository) RevokeOneByUserID(ctx context.Context, userID string) error {
+func (r *repository) DeleteOneByUserID(ctx context.Context, userID string) error {
 	// we need to remove two records, 
 	// the second is obtained using the value from the first
 	rtuKey := "rtu:" + userID

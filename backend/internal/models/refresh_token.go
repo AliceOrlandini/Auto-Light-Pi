@@ -9,5 +9,4 @@ type RefreshToken struct {
 	RefreshTokenHash string    `json:"-"`
 	UserID           string    `json:"-"`
 	TTL              time.Time `json:"-"`
-	CreatedAt        time.Time `json:"-"`
 }

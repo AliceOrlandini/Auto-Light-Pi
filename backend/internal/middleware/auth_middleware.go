@@ -12,9 +12,12 @@ import (
 
 func AuthMiddleware() gin.HandlerFunc {
 
+	// the JWT secret is a random 32 byte string to improve security
+	// since the attacker could potentially brute force the token
 	secret := []byte(os.Getenv("JWT_SECRET"))
 
 	return func(c *gin.Context) {
+		// check if in the request there is an authorization header
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
@@ -23,6 +26,7 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		// the authorization header must be a Bearer token
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
@@ -31,8 +35,8 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		// extract the token from the authorization header
 		tokenString := parts[1]
-
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				alg, _ := token.Header["alg"].(string)
@@ -41,6 +45,7 @@ func AuthMiddleware() gin.HandlerFunc {
 			return secret, nil
 		})
 
+		// validate the token
 		if err != nil || !token.Valid {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "invalid or expired token: " + err.Error(),
@@ -48,6 +53,7 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		// get the user ID from the token claims and set it in the context
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
 			sub, ok := claims["sub"].(string)
 			if !ok {

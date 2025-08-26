@@ -3,10 +3,10 @@ package bootstrap
 import (
 	"context"
 
-	"github.com/AliceOrlandini/Auto-Light-Pi/internal/controllers"
-	"github.com/AliceOrlandini/Auto-Light-Pi/internal/repositories"
+	"github.com/AliceOrlandini/Auto-Light-Pi/internal/auth"
+	"github.com/AliceOrlandini/Auto-Light-Pi/internal/refresh_token"
 	"github.com/AliceOrlandini/Auto-Light-Pi/internal/routes"
-	"github.com/AliceOrlandini/Auto-Light-Pi/internal/services"
+	"github.com/AliceOrlandini/Auto-Light-Pi/internal/user"
 	"github.com/gin-gonic/gin"
 )
 
@@ -20,14 +20,14 @@ func InitializeServer(ctx context.Context) (*gin.Engine, error) {
     }
 
     // Repositories
-    userRepo := repositories.NewUserRepository(PostgresDB)
-    refreshTokenRepo := repositories.NewRefreshTokenRepository(RedisDB)
+    userRepo := user.NewUserRepository(PostgresDB)
+    refreshTokenRepo := refresh_token.NewRefreshTokenRepository(RedisDB)
 
     // Services
-    authService := services.NewAuthService(userRepo, refreshTokenRepo)
+    authService := auth.NewAuthService(userRepo, refreshTokenRepo)
 
     // Controllers
-    authController := controllers.NewAuthController(authService)
+    authController := auth.NewAuthController(authService)
 
     // Routes
     engine := routes.SetupRoutes(authController)

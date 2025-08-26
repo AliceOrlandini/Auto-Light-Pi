@@ -1,4 +1,4 @@
-package controllers
+package auth
 
 import (
 	"context"
@@ -6,29 +6,31 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"time"
 
 	"github.com/AliceOrlandini/Auto-Light-Pi/internal/models"
-	"github.com/AliceOrlandini/Auto-Light-Pi/internal/services"
 	"github.com/gin-gonic/gin"
 )
 
-type AuthService interface {
+type authService interface {
 	Register(ctx context.Context, username string, email string, password []byte, name string, surname string) error
-	LoginByUsername(ctx context.Context, username string, password []byte) (*models.User, error) 
-	LoginByEmail(ctx context.Context, email string, password []byte) (*models.User, error) 
-	GenerateJWT(user *models.User) (string, error)
+	LoginByUsername(ctx context.Context, username string, password []byte) (*models.User, error)
+	LoginByEmail(ctx context.Context, email string, password []byte) (*models.User, error)
+	GenerateJWT(userID string) (string, error)
 	GenerateRefreshToken(ctx context.Context, userID string) (*models.RefreshToken, error)
+	ValidateRefreshToken(ctx context.Context, token string) (string, error)
+	RotateRefreshToken(ctx context.Context, userID string) (*models.RefreshToken, error)
 }
 
-type AuthController struct {
-	Service AuthService
+type Controller struct {
+	service authService
 }
 
-func NewAuthController(service AuthService) *AuthController {
-	return &AuthController{Service: service}
+func NewAuthController(service authService) *Controller {
+	return &Controller{service: service}
 }
 
-type RegisterRequest struct {
+type registerRequest struct {
 	Username string `json:"username" binding:"required,max=50"`
 	Email string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,min=8"`
@@ -36,19 +38,19 @@ type RegisterRequest struct {
 	Surname string `json:"surname" binding:"required,max=50"`
 }
 
-type LoginByUsernameRequest struct {
+type loginByUsernameRequest struct {
 	Username string `json:"username" binding:"required,max=50"`
 	Password string `json:"password" binding:"required,min=8"`
 }
 
-type LoginByEmailRequest struct {
+type loginByEmailRequest struct {
 	Email string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,min=8"`
 }
 
-func (uc *AuthController) Register(c *gin.Context) {
+func (uc *Controller) Register(c *gin.Context) {
 	ctx := c.Request.Context()
-	var request RegisterRequest
+	var request registerRequest
 	err := c.ShouldBindJSON(&request)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -64,7 +66,7 @@ func (uc *AuthController) Register(c *gin.Context) {
 	// 1. if the user already exists (from the service layer)
 	// 2. db errors 
 	// 3. context cancelled or timeouted
-	err = uc.Service.Register(ctx, 
+	err = uc.service.Register(ctx, 
 		request.Username, 
 		request.Email, 
 		[]byte(request.Password),
@@ -72,7 +74,7 @@ func (uc *AuthController) Register(c *gin.Context) {
 		request.Surname,
 	)
 	if err != nil {
-		if errors.Is(err, services.ErrUserAlreadyExists) {
+		if errors.Is(err, ErrUserAlreadyExists) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -92,9 +94,9 @@ func (uc *AuthController) Register(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"message": "user registered successfully"})
 }
 
-func (uc *AuthController) LoginByUsername(c *gin.Context) {
+func (uc *Controller) LoginByUsername(c *gin.Context) {
 	ctx := c.Request.Context()
-	var request LoginByUsernameRequest
+	var request loginByUsernameRequest
 	err := c.ShouldBindJSON(&request)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -107,9 +109,9 @@ func (uc *AuthController) LoginByUsername(c *gin.Context) {
 		return
 	}
 
-	user, err := uc.Service.LoginByUsername(ctx, request.Username, []byte(request.Password))
+	user, err := uc.service.LoginByUsername(ctx, request.Username, []byte(request.Password))
 	if err != nil {
-		if errors.Is(err, services.ErrUserNotExists) || errors.Is(err, services.ErrInvalidPassword) {
+		if errors.Is(err, ErrUserNotExists) || errors.Is(err, ErrInvalidPassword) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 			return
 		}
@@ -125,37 +127,36 @@ func (uc *AuthController) LoginByUsername(c *gin.Context) {
 		return
 	}
 
-	accessToken, err := uc.Service.GenerateJWT(user)
+	accessToken, err := uc.service.GenerateJWT(user.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 
-	maxAge := 3600
 	c.SetCookie(
 		"jwt",				// name
 		accessToken,	// token
-		maxAge,				// validity
+		3600,					// validity
 		"/",					// path
 		"",						// domain
 		true,					// secure (HTTPS)
 		true,					// httpOnly
 	)
 
-	refreshToken, err := uc.Service.GenerateRefreshToken(ctx, user.ID)
+	refreshToken, err := uc.service.GenerateRefreshToken(ctx, user.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 
 	c.SetCookie(
-		"__Host-refresh_token",			// name
-		refreshToken.RefreshToken,  // value
-		refreshToken.TTL.Second(),	// validity
-		"/",												// path
-		"",    											// Empty Domain
-		true,  											// Secure (HTTPS)
-		true,  											// HttpOnly
+		"__Host-refresh_token",												// name
+		refreshToken.RefreshToken,  									// value
+		int(time.Until(refreshToken.TTL).Seconds()),	// validity
+		"/",																					// path
+		"",    																				// Empty Domain
+		true,  																				// Secure (HTTPS)
+		true,  																				// HttpOnly
 	)
 
 	c.JSON(http.StatusOK, gin.H{
@@ -164,9 +165,9 @@ func (uc *AuthController) LoginByUsername(c *gin.Context) {
 	})
 }
 
-func (uc *AuthController) LoginByEmail(c *gin.Context) {
+func (uc *Controller) LoginByEmail(c *gin.Context) {
 	ctx := c.Request.Context()
-	var request LoginByEmailRequest
+	var request loginByEmailRequest
 	err := c.ShouldBindJSON(&request)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -179,9 +180,9 @@ func (uc *AuthController) LoginByEmail(c *gin.Context) {
 		return
 	}
 
-	user, err := uc.Service.LoginByEmail(ctx, request.Email, []byte(request.Password))
+	user, err := uc.service.LoginByEmail(ctx, request.Email, []byte(request.Password))
 	if err != nil {
-		if errors.Is(err, services.ErrUserNotExists) || errors.Is(err, services.ErrInvalidPassword) {
+		if errors.Is(err, ErrUserNotExists) || errors.Is(err, ErrInvalidPassword) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 			return
 		}
@@ -197,37 +198,38 @@ func (uc *AuthController) LoginByEmail(c *gin.Context) {
 		return
 	}
 
-	tokenString, err := uc.Service.GenerateJWT(user)
+	tokenString, err := uc.service.GenerateJWT(user.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 
-	maxAge := 3600
+	// REFACTORING: send the access token in the body and the refresh in the cookie
+	// this is to avoid CSRF attacks
 	c.SetCookie(
 		"jwt",				// name
 		tokenString,	// token
-		maxAge,				// validity
+		3600,					// validity
 		"/",					// path
 		"",						// domain
 		false,				// secure (HTTPS)
 		true,					// httpOnly
 	)
 
-	refreshToken, err := uc.Service.GenerateRefreshToken(ctx, user.ID)
+	refreshToken, err := uc.service.GenerateRefreshToken(ctx, user.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 
 	c.SetCookie(
-		"__Host-refresh_token",			// name
-		refreshToken.RefreshToken,  // value
-		refreshToken.TTL.Second(),	// validity
-		"/",												// path
-		"",    											// Empty Domain
-		true,  											// Secure (HTTPS)
-		true,  											// HttpOnly
+		"__Host-refresh_token",												// name
+		refreshToken.RefreshToken,  									// value
+		int(time.Until(refreshToken.TTL).Seconds()),	// validity
+		"/",																					// path
+		"",    																				// Empty Domain
+		true,  																				// Secure (HTTPS)
+		true,  																				// HttpOnly
 	)
 
 	c.JSON(http.StatusOK, gin.H{
@@ -236,7 +238,72 @@ func (uc *AuthController) LoginByEmail(c *gin.Context) {
 	})
 }
 
-func (uc *AuthController) validatePassword(password string) error {
+func (uc *Controller) RefreshToken(c *gin.Context) {
+	ctx := c.Request.Context()
+	const refreshCookie = "__Host-refresh_token"
+
+	// retrieve the refresh token from the cookie
+	rt, err := c.Cookie(refreshCookie)
+	if err != nil || rt == "" {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing refresh token"})
+		return
+	}
+
+	// validate the refresh token
+	userID, err := uc.service.ValidateRefreshToken(ctx, rt)
+	if err != nil {
+		if errors.Is(err, ErrInvalidToken) {
+			// this two deletes the refresh token cookie in a secure way
+			// with this we ensure that the browser makes another request 
+			// with the same invalid token
+			c.SetCookie(refreshCookie, "", -1, "/", "", true, true)
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid refresh token"})
+			return
+		}
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+
+	// generate a new refresh token by rotate
+	newRefreshToken, err := uc.service.RotateRefreshToken(ctx, userID)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+
+	c.SetCookie(
+		"__Host-refresh_token",													// name
+		newRefreshToken.RefreshToken,  									// value
+		int(time.Until(newRefreshToken.TTL).Seconds()),	// validity
+		"/",																						// path
+		"",    																					// Empty Domain
+		true,  																					// Secure (HTTPS)
+		true,  																					// HttpOnly
+	)
+
+	// generate a new JWT
+	tokenString, err := uc.service.GenerateJWT(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+
+	c.SetCookie(
+		"jwt",				// name
+		tokenString,	// token
+		3600,					// validity
+		"/",					// path
+		"",						// domain
+		false,				// secure (HTTPS)
+		true,					// httpOnly
+	)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "refresh token generated",
+	})
+}
+
+func (uc *Controller) validatePassword(password string) error {
 	hasUpper := regexp.MustCompile(`[A-Z]`).MatchString(password)
 	hasNumber := regexp.MustCompile(`[0-9]`).MatchString(password)
 

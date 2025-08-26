@@ -1,4 +1,4 @@
-package repositories
+package user
 
 import (
 	"context"
@@ -9,15 +9,15 @@ import (
 	"github.com/AliceOrlandini/Auto-Light-Pi/internal/models"
 )
 
-type UserRepository struct {
+type repository struct {
 	db *sql.DB
 }
 
-func NewUserRepository(db *sql.DB) *UserRepository {
-	return &UserRepository{db: db}
+func NewUserRepository(db *sql.DB) *repository {
+	return &repository{db: db}
 }
 
-func (r *UserRepository) CreateOne(ctx context.Context, user *models.User) error {
+func (r *repository) CreateOne(ctx context.Context, user *models.User) error {
 	query := `
 		INSERT INTO user_account(id, username, email, password, name, surname) 
 		VALUES($1, $2, $3, $4, $5, $6)
@@ -26,7 +26,7 @@ func (r *UserRepository) CreateOne(ctx context.Context, user *models.User) error
 	return err
 }
 
-func (r *UserRepository) GetOneByEmail(ctx context.Context, email string) (*models.User, error) {
+func (r *repository) GetOneByEmail(ctx context.Context, email string) (*models.User, error) {
 	query := `
 		SELECT id, username, email, password, name, surname
 		FROM user_account 
@@ -45,7 +45,7 @@ func (r *UserRepository) GetOneByEmail(ctx context.Context, email string) (*mode
 	return &user, nil
 }
 
-func (r *UserRepository) GetOneByUsername(ctx context.Context, username string) (*models.User, error) {
+func (r *repository) GetOneByUsername(ctx context.Context, username string) (*models.User, error) {
 	query := `
 		SELECT id, username, email, password, name, surname
 		FROM user_account 

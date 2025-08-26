@@ -1,4 +1,4 @@
-package services
+package auth
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/AliceOrlandini/Auto-Light-Pi/internal/models"
+	"github.com/AliceOrlandini/Auto-Light-Pi/internal/refresh_token"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -28,32 +29,32 @@ var	(
 	ErrExpired           = errors.New("expired")
 )
 
-type UserRepository interface {
+type userRepository interface {
 	CreateOne(ctx context.Context, user *models.User) error
 	GetOneByEmail(ctx context.Context, email string) (*models.User, error)
 	GetOneByUsername(ctx context.Context, username string) (*models.User, error)
 }
 
-type RefreshTokenRepository interface {
+type refreshTokenRepository interface {
 	CreateOne(ctx context.Context, refreshToken *models.RefreshToken) error
 	GetOneUserIDByTokenHash(ctx context.Context, tokenHash string) (string, error)
 	GetOneTokenHashByUserID(ctx context.Context, userID string) (string, error)
-	RevokeOneByUserID(ctx context.Context, userID string) error
+	DeleteOneByUserID(ctx context.Context, userID string) error
 }
 
-type AuthService struct {
-	userRepo UserRepository
-	refreshTokenRepo RefreshTokenRepository
+type service struct {
+	userRepo userRepository
+	refreshTokenRepo refreshTokenRepository
 }
 
-func NewAuthService(userRepo UserRepository, refreshTokenRepo RefreshTokenRepository) *AuthService {
-	return &AuthService{
+func NewAuthService(userRepo userRepository, refreshTokenRepo refreshTokenRepository) *service {
+	return &service{
 		userRepo: userRepo,
 		refreshTokenRepo: refreshTokenRepo,
 	}
 }
 
-func (s *AuthService) Register(ctx context.Context, username string, email string, password []byte, name string, surname string) error {
+func (s *service) Register(ctx context.Context, username string, email string, password []byte, name string, surname string) error {
 	// first check if the email already exists
 	emailAlreadyExists, err := s.userRepo.GetOneByEmail(ctx, email)
 	if err != nil {
@@ -93,7 +94,7 @@ func (s *AuthService) Register(ctx context.Context, username string, email strin
 	return s.userRepo.CreateOne(ctx, user)
 }
 
-func (s *AuthService) LoginByUsername(ctx context.Context, username string, password []byte) (*models.User, error) {
+func (s *service) LoginByUsername(ctx context.Context, username string, password []byte) (*models.User, error) {
 	user, err := s.userRepo.GetOneByUsername(ctx, username)
 	// if there is an error than it is an internal server error
 	// since is db releted 
@@ -118,7 +119,7 @@ func (s *AuthService) LoginByUsername(ctx context.Context, username string, pass
 	return user, nil
 }
 
-func (s *AuthService) LoginByEmail(ctx context.Context, email string, password []byte) (*models.User, error) {
+func (s *service) LoginByEmail(ctx context.Context, email string, password []byte) (*models.User, error) {
 	user, err := s.userRepo.GetOneByEmail(ctx, email)
 	if err != nil {
 		return nil, err
@@ -138,12 +139,12 @@ func (s *AuthService) LoginByEmail(ctx context.Context, email string, password [
 	return user, nil
 }
 
-func (s *AuthService) GenerateJWT(user *models.User) (string, error) {
+func (s *service) GenerateJWT(userID string) (string, error) {
 	var secret = []byte(os.Getenv("JWT_SECRET"))
 	var appName = os.Getenv("APPLICATION_NAME")
 
   token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub": user.ID,
+		"sub": userID,
 		"iss": appName,
 		"exp": time.Now().Add(time.Hour).Unix(),
 		"iat": time.Now().Unix(),
@@ -152,7 +153,7 @@ func (s *AuthService) GenerateJWT(user *models.User) (string, error) {
 	return token.SignedString(secret)
 }
 
-func (s *AuthService) GenerateRefreshToken(ctx context.Context, userID string) (*models.RefreshToken, error) {
+func (s *service) GenerateRefreshToken(ctx context.Context, userID string) (*models.RefreshToken, error) {
 	// generate 32 random bytes that will be used as the refresh token
 	bytes := make([]byte, 32)
 	_, err := rand.Read(bytes)
@@ -179,7 +180,6 @@ func (s *AuthService) GenerateRefreshToken(ctx context.Context, userID string) (
 		RefreshTokenHash: tokenHash,
 		UserID:           userID,
 		TTL:              TTL,
-		CreatedAt:        time.Now(),
 	}
 
 	err = s.refreshTokenRepo.CreateOne(ctx, refreshToken)
@@ -190,11 +190,42 @@ func (s *AuthService) GenerateRefreshToken(ctx context.Context, userID string) (
 	return refreshToken, nil
 }
 
-func (s *AuthService) hashRefreshToken(token string) (string, error) {
+func (s *service) ValidateRefreshToken(ctx context.Context, token string) (string, error){
+
+	if !strings.HasPrefix(token, refreshTokenVersion+".") {
+		return "", ErrInvalidToken
+	}
+
 	sum := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(sum[:]), nil
+	tokenHash := hex.EncodeToString(sum[:])
+
+	userID, err := s.refreshTokenRepo.GetOneUserIDByTokenHash(ctx, tokenHash)
+	if err != nil {
+		if errors.Is(err, refresh_token.ErrTokenHashNotFound) {
+			return "", ErrInvalidToken
+		}
+		return "", err
+	}
+	if userID == "" {
+		return "", ErrInvalidToken
+	}
+
+	return userID, nil
 }
 
-func isRefreshTokenSupported(token string) bool {
-	return strings.HasPrefix(token, refreshTokenVersion+".")
+func (s *service) RotateRefreshToken(ctx context.Context, userID string) (*models.RefreshToken, error) {
+
+	// delete the old refresh token
+	err := s.refreshTokenRepo.DeleteOneByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// generate a new one
+	newRefreshToken, err := s.GenerateRefreshToken(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return newRefreshToken, nil
 }
