@@ -8,18 +8,19 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/AliceOrlandini/Auto-Light-Pi/internal/models"
+	"github.com/AliceOrlandini/Auto-Light-Pi/internal/refresh_token"
+	"github.com/AliceOrlandini/Auto-Light-Pi/internal/user"
 	"github.com/gin-gonic/gin"
 )
 
 type authService interface {
-	Register(ctx context.Context, username string, email string, password []byte, name string, surname string) error
-	LoginByUsername(ctx context.Context, username string, password []byte) (*models.User, error)
-	LoginByEmail(ctx context.Context, email string, password []byte) (*models.User, error)
+	Register(ctx context.Context, username string, email string, password string, name string, surname string) error
+	LoginByUsername(ctx context.Context, username string, password string) (*user.User, error)
+	LoginByEmail(ctx context.Context, email string, password string) (*user.User, error)
 	GenerateJWT(userID string) (string, error)
-	GenerateRefreshToken(ctx context.Context, userID string) (*models.RefreshToken, error)
+	GenerateRefreshToken(ctx context.Context, userID string) (*refresh_token.RefreshToken, error)
 	ValidateRefreshToken(ctx context.Context, token string) (string, error)
-	RotateRefreshToken(ctx context.Context, userID string) (*models.RefreshToken, error)
+	RotateRefreshToken(ctx context.Context, userID string) (*refresh_token.RefreshToken, error)
 }
 
 type Controller struct {
@@ -48,6 +49,18 @@ type loginByEmailRequest struct {
 	Password string `json:"password" binding:"required,min=8"`
 }
 
+type loginUserResponse struct {
+	Message string   `json:"message"`
+	User    userInfo `json:"user"`
+}
+
+type userInfo struct {
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Name     string `json:"name"`
+	Surname  string `json:"surname"`
+}
+
 func (uc *Controller) Register(c *gin.Context) {
 	ctx := c.Request.Context()
 	var request registerRequest
@@ -69,7 +82,7 @@ func (uc *Controller) Register(c *gin.Context) {
 	err = uc.service.Register(ctx, 
 		request.Username, 
 		request.Email, 
-		[]byte(request.Password),
+		request.Password,
 		request.Name,
 		request.Surname,
 	)
@@ -109,7 +122,7 @@ func (uc *Controller) LoginByUsername(c *gin.Context) {
 		return
 	}
 
-	user, err := uc.service.LoginByUsername(ctx, request.Username, []byte(request.Password))
+	user, err := uc.service.LoginByUsername(ctx, request.Username, request.Password)
 	if err != nil {
 		if errors.Is(err, ErrUserNotExists) || errors.Is(err, ErrInvalidPassword) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
@@ -159,10 +172,17 @@ func (uc *Controller) LoginByUsername(c *gin.Context) {
 		true,  																				// HttpOnly
 	)
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "login successful",
-		"user": user,
-	})
+	loginUserResponse := &loginUserResponse{
+		Message: "login successful",
+		User: userInfo{
+			Username: user.Username,
+			Email:    user.Email,
+			Name:     user.Name,
+			Surname:  user.Surname,
+		},
+	}
+
+	c.JSON(http.StatusOK, loginUserResponse)
 }
 
 func (uc *Controller) LoginByEmail(c *gin.Context) {
@@ -180,7 +200,7 @@ func (uc *Controller) LoginByEmail(c *gin.Context) {
 		return
 	}
 
-	user, err := uc.service.LoginByEmail(ctx, request.Email, []byte(request.Password))
+	user, err := uc.service.LoginByEmail(ctx, request.Email, request.Password)
 	if err != nil {
 		if errors.Is(err, ErrUserNotExists) || errors.Is(err, ErrInvalidPassword) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
@@ -232,10 +252,17 @@ func (uc *Controller) LoginByEmail(c *gin.Context) {
 		true,  																				// HttpOnly
 	)
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "login successful",
-		"user": user,
-	})
+	loginUserResponse := &loginUserResponse{
+		Message: "login successful",
+		User: userInfo{
+			Username: user.Username,
+			Email:    user.Email,
+			Name:     user.Name,
+			Surname:  user.Surname,
+		},
+	}
+
+	c.JSON(http.StatusOK, loginUserResponse)
 }
 
 func (uc *Controller) RefreshToken(c *gin.Context) {
@@ -299,7 +326,7 @@ func (uc *Controller) RefreshToken(c *gin.Context) {
 	)
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "refresh token generated",
+		"message": "new jwt and refresh token generated",
 	})
 }
 

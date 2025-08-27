@@ -12,10 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AliceOrlandini/Auto-Light-Pi/internal/models"
 	"github.com/AliceOrlandini/Auto-Light-Pi/internal/refresh_token"
+	"github.com/AliceOrlandini/Auto-Light-Pi/internal/user"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -30,20 +29,20 @@ var	(
 )
 
 type userRepository interface {
-	CreateOne(ctx context.Context, user *models.User) error
-	GetOneByEmail(ctx context.Context, email string) (*models.User, error)
-	GetOneByUsername(ctx context.Context, username string) (*models.User, error)
+	CreateOne(ctx context.Context, user *user.User) error
+	GetOneByEmail(ctx context.Context, email string) (*user.User, error)
+	GetOneByUsername(ctx context.Context, username string) (*user.User, error)
 }
 
 type refreshTokenRepository interface {
-	CreateOne(ctx context.Context, refreshToken *models.RefreshToken) error
+	CreateOne(ctx context.Context, refreshToken *refresh_token.RefreshToken) error
 	GetOneUserIDByTokenHash(ctx context.Context, tokenHash string) (string, error)
 	GetOneTokenHashByUserID(ctx context.Context, userID string) (string, error)
 	DeleteOneByUserID(ctx context.Context, userID string) error
 }
 
 type service struct {
-	userRepo userRepository
+	userRepo         userRepository
 	refreshTokenRepo refreshTokenRepository
 }
 
@@ -54,7 +53,7 @@ func NewAuthService(userRepo userRepository, refreshTokenRepo refreshTokenReposi
 	}
 }
 
-func (s *service) Register(ctx context.Context, username string, email string, password []byte, name string, surname string) error {
+func (s *service) Register(ctx context.Context, username string, email string, password string, name string, surname string) error {
 	// first check if the email already exists
 	emailAlreadyExists, err := s.userRepo.GetOneByEmail(ctx, email)
 	if err != nil {
@@ -74,19 +73,16 @@ func (s *service) Register(ctx context.Context, username string, email string, p
 		return fmt.Errorf("%w: username already registered", ErrUserAlreadyExists)
 	}
 
-	id := uuid.New()
-
-	password, err = bcrypt.GenerateFromPassword(password, 14)
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	if err != nil {
 		// this is also an internal server error
 		return err
 	}
 
-	user := &models.User{
-		ID: id.String(),
+	user := &user.User{
 		Username: username,
 		Email: email,
-		Password: password,
+		Password: string(passwordHash),
 		Name: name,
 		Surname: surname,
 	}
@@ -94,7 +90,7 @@ func (s *service) Register(ctx context.Context, username string, email string, p
 	return s.userRepo.CreateOne(ctx, user)
 }
 
-func (s *service) LoginByUsername(ctx context.Context, username string, password []byte) (*models.User, error) {
+func (s *service) LoginByUsername(ctx context.Context, username string, password string) (*user.User, error) {
 	user, err := s.userRepo.GetOneByUsername(ctx, username)
 	// if there is an error than it is an internal server error
 	// since is db releted 
@@ -106,8 +102,8 @@ func (s *service) LoginByUsername(ctx context.Context, username string, password
 		return nil, ErrUserNotExists
 	}
 
-	err = bcrypt.CompareHashAndPassword(user.Password, password)
-	// if there is an error comparing the passwords, check if the error is 
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
+	// if there is an error comparing the passwords, check if the error is
 	// a mismatched one or is an internal server error
 	if err != nil {
 		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
@@ -119,7 +115,7 @@ func (s *service) LoginByUsername(ctx context.Context, username string, password
 	return user, nil
 }
 
-func (s *service) LoginByEmail(ctx context.Context, email string, password []byte) (*models.User, error) {
+func (s *service) LoginByEmail(ctx context.Context, email string, password string) (*user.User, error) {
 	user, err := s.userRepo.GetOneByEmail(ctx, email)
 	if err != nil {
 		return nil, err
@@ -128,7 +124,7 @@ func (s *service) LoginByEmail(ctx context.Context, email string, password []byt
 		return nil, ErrUserNotExists
 	}
 
-	err = bcrypt.CompareHashAndPassword(user.Password, password)
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
 	if err != nil {
 		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
 			return nil, ErrInvalidPassword
@@ -153,7 +149,7 @@ func (s *service) GenerateJWT(userID string) (string, error) {
 	return token.SignedString(secret)
 }
 
-func (s *service) GenerateRefreshToken(ctx context.Context, userID string) (*models.RefreshToken, error) {
+func (s *service) GenerateRefreshToken(ctx context.Context, userID string) (*refresh_token.RefreshToken, error) {
 	// generate 32 random bytes that will be used as the refresh token
 	bytes := make([]byte, 32)
 	_, err := rand.Read(bytes)
@@ -175,7 +171,7 @@ func (s *service) GenerateRefreshToken(ctx context.Context, userID string) (*mod
 	sum := sha256.Sum256([]byte(token))
 	tokenHash := hex.EncodeToString(sum[:])
 
-	refreshToken := &models.RefreshToken{
+	refreshToken := &refresh_token.RefreshToken{
 		RefreshToken:     token,
 		RefreshTokenHash: tokenHash,
 		UserID:           userID,
@@ -213,7 +209,7 @@ func (s *service) ValidateRefreshToken(ctx context.Context, token string) (strin
 	return userID, nil
 }
 
-func (s *service) RotateRefreshToken(ctx context.Context, userID string) (*models.RefreshToken, error) {
+func (s *service) RotateRefreshToken(ctx context.Context, userID string) (*refresh_token.RefreshToken, error) {
 
 	// delete the old refresh token
 	err := s.refreshTokenRepo.DeleteOneByUserID(ctx, userID)

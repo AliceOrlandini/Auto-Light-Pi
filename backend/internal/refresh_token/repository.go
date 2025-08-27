@@ -3,8 +3,8 @@ package refresh_token
 import (
 	"context"
 	"errors"
+	"time"
 
-	"github.com/AliceOrlandini/Auto-Light-Pi/internal/models"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -12,6 +12,12 @@ var (
 	ErrUserIDNotFound  = errors.New("user ID not found")
 	ErrTokenHashNotFound = errors.New("token hash not found")
 )
+
+type refreshTokenEntity struct {
+	RefreshTokenHash string
+	UserID           string
+	TTL              time.Time
+}
 
 type repository struct {
 	db *redis.Client
@@ -21,23 +27,25 @@ func NewRefreshTokenRepository(db *redis.Client) *repository {
 	return &repository{db: db}
 }
 
-func (r *repository) CreateOne(ctx context.Context, refreshToken *models.RefreshToken) error {
+func (r *repository) CreateOne(ctx context.Context, refreshToken *RefreshToken) error {
 	// we will save two records:
-	// 1. rth:{tokenHash} -> userId used as lookup when a new request comes in
-	// 2. rtu:{userId} -> {tokenHash} used for the revocation of the token
+	// 1. rth:{tokenHash} -> userID used as lookup when a new request comes in
+	// 2. rtu:{userID} -> {tokenHash} used for the revocation of the token
 
-	rtKey := "rth:" + refreshToken.RefreshTokenHash
-	rtuKey := "rtu:" + refreshToken.UserID
+	refreshTokenEntity := toEntity(refreshToken)
+
+	rtKey := "rth:" + refreshTokenEntity.RefreshTokenHash
+	rtuKey := "rtu:" + refreshTokenEntity.UserID
 
 	// we use a Lua script since we need to perform multiple operations atomically
 	lua := `
 		local rtKey = KEYS[1]
 		local ruKey = KEYS[2]
-		local userId = ARGV[1]
+		local userID = ARGV[1]
 		local tokenHash = ARGV[2]
 		local pxat   = tonumber(ARGV[3])
 
-		-- We need first to retreive the old token by lookup for the userId
+		-- We need first to retreive the old token by lookup for the userID
 		local oldTokenHash = redis.call("GET", ruKey)
 		-- If there is an old token, we need to delete it
 		if oldTokenHash then
@@ -47,14 +55,14 @@ func (r *repository) CreateOne(ctx context.Context, refreshToken *models.Refresh
 		end
 
 		-- Insert new values
-		redis.call("SET", rtKey, userId, "PXAT", pxat)
+		redis.call("SET", rtKey, userID, "PXAT", pxat)
 		redis.call("SET", ruKey, tokenHash, "PXAT", pxat)
 
 		return 1
 	`
 
-	pxat := refreshToken.TTL.UnixMilli()
-	_, err := r.db.Eval(ctx, lua, []string{rtKey, rtuKey}, refreshToken.UserID, refreshToken.RefreshTokenHash, pxat).Int64()
+	pxat := refreshTokenEntity.TTL.UnixMilli()
+	_, err := r.db.Eval(ctx, lua, []string{rtKey, rtuKey}, refreshTokenEntity.UserID, refreshTokenEntity.RefreshTokenHash, pxat).Int64()
 	if err != nil {
 		// if there is a Redis error, we consider it as an internal server error
 		return err
@@ -64,14 +72,14 @@ func (r *repository) CreateOne(ctx context.Context, refreshToken *models.Refresh
 
 func (r *repository) GetOneUserIDByTokenHash(ctx context.Context, tokenHash string) (string, error) {
 	rtKey := "rth:" + tokenHash
-	userId, err := r.db.Get(ctx, rtKey).Result()
+	userID, err := r.db.Get(ctx, rtKey).Result()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return "", ErrTokenHashNotFound
 		}
 		return "", err
 	}
-	return userId, nil
+	return userID, nil
 }
 
 func (r *repository) GetOneTokenHashByUserID(ctx context.Context, userID string) (string, error) {
@@ -114,4 +122,12 @@ func (r *repository) DeleteOneByUserID(ctx context.Context, userID string) error
 	}
 	
 	return nil
+}
+
+func toEntity(rt *RefreshToken) *refreshTokenEntity {
+	return &refreshTokenEntity{
+		RefreshTokenHash: rt.RefreshTokenHash,
+		UserID:           rt.UserID,
+		TTL:              rt.TTL,
+	}
 }
