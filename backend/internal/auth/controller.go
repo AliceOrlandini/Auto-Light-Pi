@@ -3,7 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
-	"fmt"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"time"
@@ -66,12 +66,14 @@ func (uc *Controller) Register(c *gin.Context) {
 	var request registerRequest
 	err := c.ShouldBindJSON(&request)
 	if err != nil {
+		slog.Warn("invalid register request payload", "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	err = uc.validatePassword(request.Password)
 	if err != nil {
+		slog.Warn("invalid password format", "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -88,6 +90,7 @@ func (uc *Controller) Register(c *gin.Context) {
 	)
 	if err != nil {
 		if errors.Is(err, ErrUserAlreadyExists) {
+			slog.Warn("user already exists", "error", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -96,52 +99,96 @@ func (uc *Controller) Register(c *gin.Context) {
 			return
 		}
 		if errors.Is(err, context.DeadlineExceeded) {
+			slog.Warn("request timeout", "error", err)
 			c.JSON(http.StatusRequestTimeout, gin.H{"error": "request timeout"})
 			return
 		}
 		// in case of a db error, log the error and return internal server error
-		fmt.Printf("Register error: %v\n", err.Error())
+		slog.Error("failed to register user", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
+	slog.Info("user registered successfully")
 	c.JSON(http.StatusCreated, gin.H{"message": "user registered successfully"})
 }
 
 func (uc *Controller) LoginByUsername(c *gin.Context) {
-	ctx := c.Request.Context()
 	var request loginByUsernameRequest
 	err := c.ShouldBindJSON(&request)
 	if err != nil {
+		slog.Warn("invalid login request payload", "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	err = uc.validatePassword(request.Password)
 	if err != nil {
+		slog.Warn("invalid password format", "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	ctx := c.Request.Context()
 	user, err := uc.service.LoginByUsername(ctx, request.Username, request.Password)
 	if err != nil {
-		if errors.Is(err, ErrUserNotExists) || errors.Is(err, ErrInvalidPassword) {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
-			return
-		}
-		if errors.Is(err, context.Canceled) {
-			return
-		}
-		if errors.Is(err, context.DeadlineExceeded) {
-			c.JSON(http.StatusRequestTimeout, gin.H{"error": "request timeout"})
-			return
-		}
-		fmt.Printf("Login by username error: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		uc.handleLoginError(c, err)
 		return
 	}
 
+	uc.handleSuccessfulLogin(c, user)
+}
+
+func (uc *Controller) LoginByEmail(c *gin.Context) {
+	var request loginByEmailRequest
+	err := c.ShouldBindJSON(&request)
+	if err != nil {
+		slog.Warn("invalid login request payload", "error", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	err = uc.validatePassword(request.Password)
+	if err != nil {
+		slog.Warn("invalid password format", "error", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx := c.Request.Context()
+	user, err := uc.service.LoginByEmail(ctx, request.Email, request.Password)
+	if err != nil {
+		uc.handleLoginError(c, err)
+		return
+	}
+
+	uc.handleSuccessfulLogin(c, user)
+}
+
+func (uc *Controller) handleLoginError(c *gin.Context, err error) {
+	if errors.Is(err, ErrUserNotExists) || errors.Is(err, ErrInvalidPassword) {
+		slog.Warn("invalid login credentials", "error", err)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		return
+	}
+	if errors.Is(err, context.Canceled) {
+		return
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		slog.Warn("request timeout", "error", err)
+		c.JSON(http.StatusRequestTimeout, gin.H{"error": "request timeout"})
+		return
+	}
+	
+	slog.Error("failed to login user", "error", err)
+	c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+}
+
+func (uc *Controller) handleSuccessfulLogin(c *gin.Context, user *user.User) {
+	ctx := c.Request.Context()
+
 	accessToken, err := uc.service.GenerateJWT(user.ID)
 	if err != nil {
+		slog.Error("failed to generate JWT", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
@@ -158,86 +205,15 @@ func (uc *Controller) LoginByUsername(c *gin.Context) {
 
 	refreshToken, err := uc.service.GenerateRefreshToken(ctx, user.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
-		return
-	}
-
-	c.SetCookie(
-		"__Host-refresh_token",												// name
-		refreshToken.RefreshToken,  									// value
-		int(time.Until(refreshToken.TTL).Seconds()),	// validity
-		"/",																					// path
-		"",    																				// Empty Domain
-		true,  																				// Secure (HTTPS)
-		true,  																				// HttpOnly
-	)
-
-	loginUserResponse := &loginUserResponse{
-		Message: "login successful",
-		User: userInfo{
-			Username: user.Username,
-			Email:    user.Email,
-			Name:     user.Name,
-			Surname:  user.Surname,
-		},
-	}
-
-	c.JSON(http.StatusOK, loginUserResponse)
-}
-
-func (uc *Controller) LoginByEmail(c *gin.Context) {
-	ctx := c.Request.Context()
-	var request loginByEmailRequest
-	err := c.ShouldBindJSON(&request)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	err = uc.validatePassword(request.Password)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	user, err := uc.service.LoginByEmail(ctx, request.Email, request.Password)
-	if err != nil {
-		if errors.Is(err, ErrUserNotExists) || errors.Is(err, ErrInvalidPassword) {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
-			return
-		}
 		if errors.Is(err, context.Canceled) {
 			return
 		}
 		if errors.Is(err, context.DeadlineExceeded) {
+			slog.Warn("request timeout", "error", err)
 			c.JSON(http.StatusRequestTimeout, gin.H{"error": "request timeout"})
 			return
 		}
-		fmt.Printf("Login by email error: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
-		return
-	}
-
-	tokenString, err := uc.service.GenerateJWT(user.ID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
-		return
-	}
-
-	// REFACTORING: send the access token in the body and the refresh in the cookie
-	// this is to avoid CSRF attacks
-	c.SetCookie(
-		"jwt",				// name
-		tokenString,	// token
-		3600,					// validity
-		"/",					// path
-		"",						// domain
-		false,				// secure (HTTPS)
-		true,					// httpOnly
-	)
-
-	refreshToken, err := uc.service.GenerateRefreshToken(ctx, user.ID)
-	if err != nil {
+		slog.Error("failed to generate refresh token", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
@@ -262,6 +238,7 @@ func (uc *Controller) LoginByEmail(c *gin.Context) {
 		},
 	}
 
+	slog.Info("user logged in successfully", "userID", user.ID)
 	c.JSON(http.StatusOK, loginUserResponse)
 }
 
@@ -272,6 +249,7 @@ func (uc *Controller) RefreshToken(c *gin.Context) {
 	// retrieve the refresh token from the cookie
 	rt, err := c.Cookie(refreshCookie)
 	if err != nil || rt == "" {
+		slog.Warn("missing refresh token", "error", err)
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing refresh token"})
 		return
 	}
@@ -284,9 +262,19 @@ func (uc *Controller) RefreshToken(c *gin.Context) {
 			// with this we ensure that the browser makes another request 
 			// with the same invalid token
 			c.SetCookie(refreshCookie, "", -1, "/", "", true, true)
+			slog.Warn("invalid refresh token", "error", err)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid refresh token"})
 			return
 		}
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			slog.Warn("request timeout", "error", err)
+			c.JSON(http.StatusRequestTimeout, gin.H{"error": "request timeout"})
+			return
+		}
+		slog.Error("failed to validate refresh token", "error", err)
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
@@ -294,6 +282,15 @@ func (uc *Controller) RefreshToken(c *gin.Context) {
 	// generate a new refresh token by rotate
 	newRefreshToken, err := uc.service.RotateRefreshToken(ctx, userID)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			slog.Warn("request timeout", "error", err)
+			c.JSON(http.StatusRequestTimeout, gin.H{"error": "request timeout"})
+			return
+		}
+		slog.Error("failed to rotate refresh token", "error", err)
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
@@ -311,6 +308,7 @@ func (uc *Controller) RefreshToken(c *gin.Context) {
 	// generate a new JWT
 	tokenString, err := uc.service.GenerateJWT(userID)
 	if err != nil {
+		slog.Error("failed to generate JWT", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
@@ -325,6 +323,7 @@ func (uc *Controller) RefreshToken(c *gin.Context) {
 		true,					// httpOnly
 	)
 
+	slog.Info("token refreshed successfully", "userID", userID)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "new jwt and refresh token generated",
 	})

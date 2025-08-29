@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"database/sql"
+	"log/slog"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -17,11 +18,13 @@ func InitRedisDB(ctx context.Context) error {
 	// load the environment to get the redis dsn
 	err := godotenv.Load()
 	if err != nil {
+		slog.Error("failed to load environment variables", "error", err)
 		return err
 	}
 	dbDsn := os.Getenv("REDIS_DB_DSN")
 	opt, err := redis.ParseURL(dbDsn)
 	if err != nil {
+		slog.Error("failed to parse RedisDB URL", "error", err)
 		return err
 	}
 
@@ -31,6 +34,7 @@ func InitRedisDB(ctx context.Context) error {
 	// check if the redis server is reachable
 	err = rdb.Ping(ctx).Err()
 	if err != nil {
+		slog.Error("failed to connect to RedisDB", "error", err)
 		return err
 	}
 
@@ -44,17 +48,20 @@ func InitPosgresDB(ctx context.Context) error {
 	// load the environment to get the postgres dsn
 	err := godotenv.Load()
 	if err != nil {
+		slog.Error("failed to load environment variables", "error", err)
 		return err
 	}
 	dbDsn := os.Getenv("POSTGRES_DB_DSN")
 	psqlDB, err := sql.Open("postgres", dbDsn)
 	if err != nil {
+		slog.Error("failed to open connection with PostgresDB", "error", err)
 		return err
 	}
 
 	// check if the postgres server is reachable
 	err = psqlDB.PingContext(ctx)
 	if err != nil {
+		slog.Error("failed to connect to PostgresDB", "error", err)
 		return err
 	}
 
@@ -63,11 +70,13 @@ func InitPosgresDB(ctx context.Context) error {
 
 	// read from the filesystem the database schema and execute it
 	content, err := os.ReadFile("schema.sql")
-  if err != nil {
-    return err
-  }
+	if err != nil {
+		slog.Error("failed to read PostgresDB schema file", "error", err)
+		return err
+	}
 	_, err = PostgresDB.Exec(string(content))
 	if err != nil {
+		slog.Error("failed to execute PostgresDB schema", "error", err)
 		return err
 	}
 

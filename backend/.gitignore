@@ -30,3 +30,6 @@ go.work.sum
 # Redis
 *.rdb
 *.aof
+
+# App Log
+app.log

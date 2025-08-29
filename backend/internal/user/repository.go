@@ -29,7 +29,6 @@ func NewUserRepository(db *sql.DB) *repository {
 func (r *repository) CreateOne(ctx context.Context, user *User) error {
 	UserEntity, err := toEntity(user)
 	if err != nil {
-		// it is an internal server error
 		return err
 	}
 	query := `
