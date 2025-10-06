@@ -331,10 +331,14 @@ func (uc *Controller) RefreshToken(c *gin.Context) {
 
 func (uc *Controller) validatePassword(password string) error {
 	hasUpper := regexp.MustCompile(`[A-Z]`).MatchString(password)
+	hasLower := regexp.MustCompile(`[a-z]`).MatchString(password)
 	hasNumber := regexp.MustCompile(`[0-9]`).MatchString(password)
 
 	if !hasUpper {
 		return errors.New("password must contain at least capital letter")
+	}
+	if !hasLower {
+		return errors.New("password must contain at least a lowercase letter")
 	}
 	if !hasNumber {
 		return errors.New("password must contain at least a number")

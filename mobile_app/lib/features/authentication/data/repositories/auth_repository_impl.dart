@@ -1,42 +1,51 @@
-import 'package:auto_light_pi/core/errors/backend_failures.dart';
-import 'package:auto_light_pi/core/errors/failure.dart';
+import 'package:auto_light_pi/core/failure/network_failure.dart';
 import 'package:auto_light_pi/features/authentication/data/data_sources/auth_remote_data_source.dart';
-import 'package:auto_light_pi/features/authentication/data/models/login_response.dart';
+import 'package:auto_light_pi/features/authentication/data/models/login_valid_response.dart';
 import 'package:auto_light_pi/features/authentication/domain/entities/user_entity.dart';
 import 'package:auto_light_pi/features/authentication/domain/repositories/auth_repository.dart';
-import 'package:auto_light_pi/network/network_exception.dart';
+import 'package:auto_light_pi/features/authentication/data/data_sources/auth_local_data_source.dart';
 import 'package:dartz/dartz.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
   final AuthRemoteDataSource _remote;
-  //final AuthLocalDataSource _local;
+  final AuthLocalDataSource _local;
 
-  AuthRepositoryImpl({required AuthRemoteDataSource remote}) : _remote = remote;
+  AuthRepositoryImpl({
+    required AuthRemoteDataSource remote,
+    required AuthLocalDataSource local,
+  }) : _remote = remote,
+       _local = local;
 
   @override
-  Future<Either<UserEntity, Failure>> authenticate({
+  Future<Either<UserEntity, NetworkFailure>> authenticate({
     required String username,
     required String password,
   }) async {
-    try {
-      final LoginResponse loginResponse = await _remote.loginByUsername(
-        username,
-        password,
-      );
-      final UserEntity user = loginResponse.user.toEntity();
-      return Left<UserEntity, Failure>(user);
-    } on BadRequestException catch (e) {
-      return Right<UserEntity, Failure>(BadRequestFailure(e.message));
-    } on UnauthorizedException catch (e) {
-      return Right<UserEntity, Failure>(UnauthorizedFailure(e.message));
-    } on TimeoutException catch (e) {
-      return Right<UserEntity, Failure>(TimeoutFailure(e.message));
-    } on ServerException catch (e) {
-      return Right<UserEntity, Failure>(ServerFailure(e.message));
-    } on NetworkException catch (e) {
-      return Right<UserEntity, Failure>(UnknownFailure(e.message));
-    } catch (e) {
-      return Right<UserEntity, Failure>(UnknownFailure(e.toString()));
-    }
+    final Either<LoginValidResponse, NetworkFailure> result = await _remote
+        .loginByUsername(username, password);
+    return result.fold(
+      (LoginValidResponse loginValidResponse) {
+        final UserEntity user = loginValidResponse.user.toEntity();
+
+        // Cache the user locally
+        _local.cacheUser(loginValidResponse.user);
+        return Left<UserEntity, NetworkFailure>(user);
+      },
+      (NetworkFailure failure) {
+        return Right<UserEntity, NetworkFailure>(failure);
+      },
+    );
+  }
+
+  @override
+  Future<UserEntity?> isAuthenticated() async {
+    final UserEntity? user = await _local.getUser();
+    return user;
+  }
+
+  @override
+  Future<void> logout() async {
+    await _local.clearUser();
+    await _local.clearToken();
   }
 }

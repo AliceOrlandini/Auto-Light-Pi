@@ -1,10 +1,10 @@
-import 'package:auto_light_pi/storage/jwt_token_storage.dart';
+import 'package:auto_light_pi/features/authentication/data/data_sources/auth_local_data_source.dart';
 import 'package:dio/dio.dart';
 
 class JwtTokenInterceptor extends Interceptor {
-  final JwtTokenStorage _jwtTokenStorage;
+  final AuthLocalDataSource _local;
 
-  JwtTokenInterceptor(this._jwtTokenStorage);
+  JwtTokenInterceptor(this._local);
 
   @override
   void onResponse(
@@ -17,7 +17,7 @@ class JwtTokenInterceptor extends Interceptor {
         r'jwt=([^;]+)',
       ).firstMatch(setCookie.join(';'));
       if (match != null) {
-        await _jwtTokenStorage.writeToken(match.group(1)!);
+        await _local.cacheToken(match.group(1)!);
       }
     }
     handler.next(response);
@@ -28,7 +28,7 @@ class JwtTokenInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    final String? token = await _jwtTokenStorage.readToken();
+    final String? token = await _local.getToken();
     if (token != null) {
       options.headers['Authorization'] = 'Bearer $token';
     }

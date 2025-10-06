@@ -1,5 +1,4 @@
 import 'package:auto_light_pi/interceptors/jwt_token_interceptor.dart';
-import 'package:auto_light_pi/storage/jwt_token_storage.dart';
 import 'package:dio/dio.dart';
 
 class DioClient {
@@ -9,7 +8,7 @@ class DioClient {
 
   static Future<DioClient> create({
     required String baseUrl,
-    required JwtTokenStorage jwtTokenStorage,
+    required JwtTokenInterceptor jwtTokenInterceptor,
   }) async {
     final Dio dio = Dio(
       BaseOptions(
@@ -18,7 +17,9 @@ class DioClient {
         receiveTimeout: const Duration(milliseconds: 5000),
       ),
     );
-    dio.interceptors.add(JwtTokenInterceptor(jwtTokenStorage));
+
+    dio.interceptors.add(jwtTokenInterceptor);
+
     return DioClient._(dio);
   }
 }

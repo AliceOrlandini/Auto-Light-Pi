@@ -63,7 +63,8 @@ class LoginBloc extends Bloc<LoginEvent, LoginState> {
             AuthenticationStatus.unauthenticated) {
           return state.copyWith(
             status: FormzSubmissionStatus.failure,
-            errorMessage: authenticationState.errorMessage,
+            errorMessage:
+                '${authenticationState.errorMessage} (${authenticationState.statusCode})',
           );
         }
 
@@ -71,7 +72,7 @@ class LoginBloc extends Bloc<LoginEvent, LoginState> {
           return state.copyWith(status: FormzSubmissionStatus.success);
         }
 
-        return state.copyWith(status: FormzSubmissionStatus.inProgress);
+        return state;
       },
     );
   }

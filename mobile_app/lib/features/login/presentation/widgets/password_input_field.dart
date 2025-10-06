@@ -39,10 +39,15 @@ class _PasswordInputFieldState extends State<PasswordInputField> {
 
             switch (state.password.error) {
               case PasswordValidationError.empty:
+                return 'Password cannot be empty';
               case PasswordValidationError.tooShort:
+                return 'Password too short';
               case PasswordValidationError.digitMissing:
+                return 'Password must contain a digit';
               case PasswordValidationError.upperCaseMissing:
-                return 'Invalid Password';
+                return 'Password must contain an uppercase letter';
+              case PasswordValidationError.lowerCaseMissing:
+                return 'Password must contain a lowercase letter';
               default:
                 return null;
             }

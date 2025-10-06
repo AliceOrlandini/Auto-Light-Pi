@@ -1,6 +1,8 @@
-import 'package:auto_light_pi/core/errors/failure.dart';
+import 'package:auto_light_pi/core/failure/network_failure.dart';
 import 'package:auto_light_pi/features/authentication/domain/entities/user_entity.dart';
-import 'package:auto_light_pi/features/authentication/domain/use_cases/login_use_case.dart';
+import 'package:auto_light_pi/features/authentication/domain/use_cases/check_authentication.dart';
+import 'package:auto_light_pi/features/authentication/domain/use_cases/login.dart';
+import 'package:auto_light_pi/features/authentication/domain/use_cases/logout.dart';
 import 'package:auto_light_pi/features/authentication/presentation/bloc/authentication_event.dart';
 import 'package:auto_light_pi/features/authentication/presentation/bloc/authentication_state.dart';
 import 'package:dartz/dartz.dart';
@@ -9,12 +11,19 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 class AuthenticationBloc
     extends Bloc<AuthenticationEvent, AuthenticationState> {
   final LoginUseCase _loginUseCase;
-  AuthenticationBloc({required LoginUseCase loginUseCase})
-    : _loginUseCase = loginUseCase,
-      super(const AuthenticationState.unknown()) {
-    // on<AuthCheckRequest>(_onAuthCheckRequest);
+  final CheckAuthenticationUseCase _checkAuthenticationUseCase;
+  final LogoutUseCase _logoutUseCase;
+  AuthenticationBloc({
+    required LoginUseCase loginUseCase,
+    required CheckAuthenticationUseCase checkAuthenticationUseCase,
+    required LogoutUseCase logoutUseCase,
+  }) : _loginUseCase = loginUseCase,
+       _checkAuthenticationUseCase = checkAuthenticationUseCase,
+       _logoutUseCase = logoutUseCase,
+       super(const AuthenticationState.unknown()) {
+    on<AuthCheckRequest>(_onAuthCheckRequest);
     on<LoginRequest>(_onLoginRequest);
-    // on<LogoutRequest>(_onLogoutRequest);
+    on<LogoutRequest>(_onLogoutRequest);
   }
 
   Future<void> _onLoginRequest(
@@ -22,7 +31,7 @@ class AuthenticationBloc
     Emitter<AuthenticationState> emit,
   ) async {
     emit(const AuthenticationState.unknown());
-    final Either<UserEntity, Failure> result = await _loginUseCase.call(
+    final Either<UserEntity, NetworkFailure> result = await _loginUseCase.call(
       username: event.username,
       password: event.password,
     );
@@ -31,9 +40,35 @@ class AuthenticationBloc
       (UserEntity user) {
         emit(AuthenticationState.authenticated(user));
       },
-      (Failure failure) {
-        emit(AuthenticationState.unauthenticated(failure.message));
+      (NetworkFailure failure) {
+        emit(
+          AuthenticationState.unauthenticated(
+            failure.message,
+            statusCode: failure.statusCode,
+          ),
+        );
       },
     );
+  }
+
+  Future<void> _onAuthCheckRequest(
+    AuthCheckRequest event,
+    Emitter<AuthenticationState> emit,
+  ) async {
+    emit(const AuthenticationState.unknown());
+    final UserEntity? result = await _checkAuthenticationUseCase.call();
+    if (result != null) {
+      emit(AuthenticationState.authenticated(result));
+    } else {
+      emit(const AuthenticationState.unauthenticated('Unauthenticated'));
+    }
+  }
+
+  Future<void> _onLogoutRequest(
+    LogoutRequest event,
+    Emitter<AuthenticationState> emit,
+  ) async {
+    await _logoutUseCase.call();
+    emit(const AuthenticationState.unauthenticated('Logged out'));
   }
 }

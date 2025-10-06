@@ -1,6 +1,7 @@
-import 'package:auto_light_pi/features/authentication/data/models/login_response.dart';
+import 'package:auto_light_pi/core/failure/network_failure.dart';
+import 'package:auto_light_pi/features/authentication/data/models/login_valid_response.dart';
 import 'package:auto_light_pi/network/dio_client.dart';
-import 'package:auto_light_pi/network/network_exception.dart';
+import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart';
 
 class AuthRemoteDataSource {
@@ -8,7 +9,7 @@ class AuthRemoteDataSource {
 
   AuthRemoteDataSource(this._dioClient);
 
-  Future<LoginResponse> loginByUsername(
+  Future<Either<LoginValidResponse, NetworkFailure>> loginByUsername(
     String username,
     String password,
   ) async {
@@ -17,7 +18,9 @@ class AuthRemoteDataSource {
         '/login/username',
         data: <String, String>{'username': username, 'password': password},
       );
-      return LoginResponse.fromJson(response.data as Map<String, dynamic>);
+      return Left<LoginValidResponse, NetworkFailure>(
+        LoginValidResponse.fromJson(response.data as Map<String, dynamic>),
+      );
     } on DioException catch (e) {
       if (e.response != null && e.response!.data is Map<String, dynamic>) {
         final Map<String, dynamic> data =
@@ -26,25 +29,37 @@ class AuthRemoteDataSource {
 
         switch (e.response!.statusCode) {
           case 400:
-            throw BadRequestException(errorMsg);
+            return Right<LoginValidResponse, NetworkFailure>(
+              BadRequestFailure(errorMsg),
+            );
           case 401:
-            throw UnauthorizedException(errorMsg);
+            return Right<LoginValidResponse, NetworkFailure>(
+              UnauthorizedFailure(errorMsg),
+            );
           case 408:
-            throw TimeoutException(errorMsg);
+            return Right<LoginValidResponse, NetworkFailure>(
+              TimeoutFailure(errorMsg),
+            );
           case 500:
-            throw ServerException(errorMsg);
+            return Right<LoginValidResponse, NetworkFailure>(
+              InternalServerFailure(errorMsg),
+            );
           default:
-            throw NetworkException(
-              errorMsg,
-              statusCode: e.response!.statusCode,
+            return Right<LoginValidResponse, NetworkFailure>(
+              UnknownFailure(errorMsg),
             );
         }
       }
+      // this is the Dio message, not the server response
       if (e.message != null) {
-        throw NetworkException(e.message!);
+        return Right<LoginValidResponse, NetworkFailure>(
+          UnknownFailure(e.message!),
+        );
       }
       // if no response or exception was thrown, throw a generic exception
-      throw Exception('unexpected error occurred during login');
+      return Right<LoginValidResponse, NetworkFailure>(
+        UnknownFailure('Unknown error occurred'),
+      );
     }
   }
 }

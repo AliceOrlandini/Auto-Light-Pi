@@ -1,4 +1,4 @@
-import 'package:auto_light_pi/core/errors/failure.dart';
+import 'package:auto_light_pi/core/failure/network_failure.dart';
 import 'package:auto_light_pi/features/authentication/domain/entities/user_entity.dart';
 import 'package:auto_light_pi/features/authentication/domain/repositories/auth_repository.dart';
 import 'package:dartz/dartz.dart';
@@ -8,7 +8,7 @@ class LoginUseCase {
 
   LoginUseCase(this._authRepository);
 
-  Future<Either<UserEntity, Failure>> call({
+  Future<Either<UserEntity, NetworkFailure>> call({
     required String username,
     required String password,
   }) {
