@@ -227,7 +227,7 @@ void main() {
 
       whenListen(
         mockLoginBloc,
-        Stream<LoginState>.fromIterable([
+        Stream<LoginState>.fromIterable(<LoginState>[
           initialState,
           samePasswordState, // Should not rebuild
           differentPasswordState, // Should rebuild

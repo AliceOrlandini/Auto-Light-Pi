@@ -160,7 +160,9 @@ void main() {
     blocTest<AuthenticationBloc, AuthenticationState>(
       'emits [AuthenticationState.unauthenticated] when LogoutRequest is added',
       build: () {
-        when(() => mockLogoutUseCase.call()).thenAnswer((_) async => {});
+        when(
+          () => mockLogoutUseCase.call(),
+        ).thenAnswer((_) async => <dynamic, dynamic>{});
         return AuthenticationBloc(
           loginUseCase: mockLoginUseCase,
           checkAuthenticationUseCase: mockCheckAuthenticationUseCase,

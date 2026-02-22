@@ -106,7 +106,7 @@ void main() {
 
       whenListen(
         mockLoginBloc,
-        Stream<LoginState>.fromIterable([
+        Stream<LoginState>.fromIterable(<LoginState>[
           initialState,
           sameUsernameState, // Should not rebuild
           differentUsernameState, // Should rebuild

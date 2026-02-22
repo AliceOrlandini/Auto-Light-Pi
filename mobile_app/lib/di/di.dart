@@ -9,6 +9,7 @@ import 'package:auto_light_pi/features/authentication/presentation/bloc/authenti
 import 'package:auto_light_pi/features/login/presentation/bloc/login_bloc.dart';
 import 'package:auto_light_pi/network/dio_client.dart';
 import 'package:auto_light_pi/interceptors/jwt_token_interceptor.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:get_it/get_it.dart';
 
 final GetIt sl = GetIt.instance;
@@ -17,7 +18,7 @@ void init() async {
   /** Dio Client **/
   sl.registerSingletonAsync<DioClient>(
     () async => await DioClient.create(
-      baseUrl: 'http://192.168.1.9:8080/api',
+      baseUrl: dotenv.get('BACKEND_URL', fallback: 'http://localhost:8080/api'),
       jwtTokenInterceptor: sl<JwtTokenInterceptor>(),
     ),
   );
