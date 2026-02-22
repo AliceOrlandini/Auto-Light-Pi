@@ -6,17 +6,12 @@ import (
 	"os"
 
 	"github.com/AliceOrlandini/Auto-Light-Pi/internal/bootstrap"
-	"github.com/joho/godotenv"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-func init() {
-	godotenv.Load()
-}
-
 func main() {
 	ctx := context.Background()
-	port := os.Getenv("PORT")
+	port := os.Getenv("BACKEND_PORT")
 	
 	// configure log rotation on a file
 	rotator := &lumberjack.Logger{

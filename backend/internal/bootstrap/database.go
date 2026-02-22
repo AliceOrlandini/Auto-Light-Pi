@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 )
@@ -15,13 +14,10 @@ var PostgresDB *sql.DB
 var RedisDB *redis.Client
 
 func InitRedisDB(ctx context.Context) error {
-	// load the environment to get the redis dsn
-	err := godotenv.Load()
-	if err != nil {
-		slog.Error("failed to load environment variables", "error", err)
-		return err
-	}
-	dbDsn := os.Getenv("REDIS_DB_DSN")
+	// load the environment to create the redis dsn
+	redisDBHost := os.Getenv("REDIS_HOST")
+	redisDBPort := os.Getenv("REDIS_PORT")
+	dbDsn := "redis://" + redisDBHost + ":" + redisDBPort
 	opt, err := redis.ParseURL(dbDsn)
 	if err != nil {
 		slog.Error("failed to parse RedisDB URL", "error", err)
@@ -45,13 +41,13 @@ func InitRedisDB(ctx context.Context) error {
 }
 
 func InitPosgresDB(ctx context.Context) error {
-	// load the environment to get the postgres dsn
-	err := godotenv.Load()
-	if err != nil {
-		slog.Error("failed to load environment variables", "error", err)
-		return err
-	}
-	dbDsn := os.Getenv("POSTGRES_DB_DSN")
+	// load the environment to create the postgres dsn
+	postgresDBHost := os.Getenv("POSTGRES_HOST")
+	postgresDBUser := os.Getenv("POSTGRES_USER")
+	postgresDBPass := os.Getenv("POSTGRES_PASSWORD")
+	postgresDBName := os.Getenv("POSTGRES_DB")
+	postgresDBPort := os.Getenv("POSTGRES_PORT")
+	dbDsn := "host=" + postgresDBHost + " user=" + postgresDBUser + " password=" + postgresDBPass + " dbname=" + postgresDBName + " port=" + postgresDBPort + " sslmode=disable"
 	psqlDB, err := sql.Open("postgres", dbDsn)
 	if err != nil {
 		slog.Error("failed to open connection with PostgresDB", "error", err)
@@ -67,18 +63,6 @@ func InitPosgresDB(ctx context.Context) error {
 
 	// set the postgres client to the global variable
 	PostgresDB = psqlDB
-
-	// read from the filesystem the database schema and execute it
-	content, err := os.ReadFile("schema.sql")
-	if err != nil {
-		slog.Error("failed to read PostgresDB schema file", "error", err)
-		return err
-	}
-	_, err = PostgresDB.Exec(string(content))
-	if err != nil {
-		slog.Error("failed to execute PostgresDB schema", "error", err)
-		return err
-	}
 
 	return nil
 }
