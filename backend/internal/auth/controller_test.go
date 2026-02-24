@@ -32,7 +32,7 @@ func newTestContext(method, path string, body []byte) (*gin.Context, *httptest.R
 	return c, w
 }
 
-func TestRegister(t *testing.T) {
+func TestController_Register(t *testing.T) {
 	tests := []struct {
 		name         string
 		body         string
@@ -215,7 +215,7 @@ func TestRegister(t *testing.T) {
 	}
 }
 
-func TestLoginByUsername(t *testing.T) {
+func TestController_LoginByUsername(t *testing.T) {
 	tests := []struct {
 		name string
 		body string
@@ -305,7 +305,7 @@ func TestLoginByUsername(t *testing.T) {
 	}
 }
 
-func TestLoginByEmail(t *testing.T) {
+func TestController_LoginByEmail(t *testing.T) {
 	tests := []struct {
 		name string
 		body string
@@ -401,7 +401,7 @@ func TestLoginByEmail(t *testing.T) {
 	}
 }
 
-func TestRefreshToken(t *testing.T) {
+func TestController_RefreshToken(t *testing.T) {
 	tests := []struct {
 		name         string
 		cookies      []*http.Cookie
@@ -575,7 +575,7 @@ func TestRefreshToken(t *testing.T) {
 	}
 }
 
-func TestHandleLoginError(t *testing.T) {
+func TestController_HandleLoginError(t *testing.T) {
 	tests := []struct {
 		name         string
 		err          error
@@ -628,7 +628,7 @@ func TestHandleLoginError(t *testing.T) {
 	}
 }
 
-func TestHandleSuccessfulLogin(t *testing.T) {
+func TestController_HandleSuccessfulLogin(t *testing.T) {
 	tests := []struct {
 		name				 string
 		user 				 *user.User

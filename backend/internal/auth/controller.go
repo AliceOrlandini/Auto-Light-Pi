@@ -1,5 +1,7 @@
 package auth
 
+//go:generate mockgen -source=controller.go -destination=mocks/mock_auth_controller.go -package=mocks
+
 import (
 	"context"
 	"errors"

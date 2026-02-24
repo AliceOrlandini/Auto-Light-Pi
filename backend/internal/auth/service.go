@@ -1,5 +1,7 @@
 package auth
 
+//go:generate mockgen -source=service.go -destination=mocks/mock_service.go -package=mocks
+
 import (
 	"context"
 	"crypto/rand"
