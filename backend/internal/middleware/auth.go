@@ -39,21 +39,18 @@ func AuthMiddleware() gin.HandlerFunc {
 		tokenString := parts[1]
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				alg, _ := token.Header["alg"].(string)
-				return nil, errors.New("unexpected signing method: " + alg)
-    	}
+				return nil, errors.New("unexpected signing method")
+			}
 			return secret, nil
 		})
 
-		// validate the token
 		if err != nil || !token.Valid {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "invalid or expired token: " + err.Error(),
+				"error": "invalid or expired token",
 			})
 			return
 		}
 
-		// get the user ID from the token claims and set it in the context
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
 			sub, ok := claims["sub"].(string)
 			if !ok {
