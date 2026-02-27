@@ -4,97 +4,35 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/AliceOrlandini/Auto-Light-Pi/internal/auth"
 	"github.com/AliceOrlandini/Auto-Light-Pi/internal/refresh_token"
+	"github.com/AliceOrlandini/Auto-Light-Pi/internal/testutils"
 	"github.com/AliceOrlandini/Auto-Light-Pi/internal/user"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
-	"github.com/testcontainers/testcontainers-go/modules/postgres"
-	redisContainer "github.com/testcontainers/testcontainers-go/modules/redis"
 )
 
 func init() { gin.SetMode(gin.TestMode) }
 
-func getRootPath() string {
-    _, b, _, _ := runtime.Caller(0)
-    return filepath.Join(filepath.Dir(b), "..", "..") 
-}
+var testPostgresDB *sql.DB
+var testRedisDB *redis.Client
 
-func setupContainers(ctx context.Context) (*sql.DB, *redis.Client, func(), error) {
-	// Postgres Container
-	pgContainer, err := postgres.Run(ctx,
-		"postgres:18-alpine",
-		postgres.WithDatabase("testdb"),
-		postgres.WithUsername("user"),
-		postgres.WithPassword("password"),
-		postgres.WithInitScripts(filepath.Join(getRootPath(), "testdata", "schema.sql")),
-		postgres.BasicWaitStrategies(),
-	)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to start postgres container: %w", err)
-	}
-
-	pgConnectionString, err := pgContainer.ConnectionString(ctx, "sslmode=disable")
-	if err != nil {
-		pgContainer.Terminate(ctx)
-		return nil, nil, nil, fmt.Errorf("failed to get postgres connection string: %w", err)
-	}
-
-	pgDB, err := sql.Open("postgres", pgConnectionString)
-	if err != nil {
-		pgContainer.Terminate(ctx)
-		return nil, nil, nil, fmt.Errorf("failed to open postgres connection: %w", err)
-	}
-
-	// Redis Container
-	rContainer, err := redisContainer.Run(ctx,
-		"redis:alpine",
-		redisContainer.WithSnapshotting(0, 0),
-		redisContainer.WithLogLevel(redisContainer.LogLevelVerbose),
-	)
-	if err != nil {
-		pgDB.Close()
-		pgContainer.Terminate(ctx)
-		return nil, nil, nil, fmt.Errorf("failed to start redis container: %w", err)
-	}
-
-	rConnectionString, err := rContainer.ConnectionString(ctx)
-	if err != nil {
-		pgDB.Close()
-		pgContainer.Terminate(ctx)
-		rContainer.Terminate(ctx)
-		return nil, nil, nil, fmt.Errorf("failed to get redis connection string: %w", err)
-	}
-
-	opt, err := redis.ParseURL(rConnectionString)
-	if err != nil {
-		pgDB.Close()
-		pgContainer.Terminate(ctx)
-		rContainer.Terminate(ctx)
-		return nil, nil, nil, fmt.Errorf("failed to parse redis url: %w", err)
-	}
-	rdb := redis.NewClient(opt)
-
-	cleanup := func() {
-		pgDB.Close()
-		pgContainer.Terminate(ctx)
-		rdb.Close()
-		rContainer.Terminate(ctx)
-	}
-
-	return pgDB, rdb, cleanup, nil
+func TestMain(m *testing.M) {
+	pgConnectionStr := testutils.SetupPostgres()
+	testPostgresDB, _ = sql.Open("postgres", pgConnectionStr)
+	redisConnectionStr := testutils.SetupRedis()
+	opt, _ := redis.ParseURL(redisConnectionStr)
+	testRedisDB = redis.NewClient(opt)
+	os.Exit(m.Run())
 }
 
 func TestIntegrationRoutes(t *testing.T) {
@@ -103,11 +41,6 @@ func TestIntegrationRoutes(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	pgDB, rdb, cleanup, err := setupContainers(ctx)
-	if err != nil {
-		t.Fatalf("failed to setup containers: %v", err)
-	}
-	defer cleanup()
 
 	// Setup env vars for JWT
 	// Note: We must set this before SetupRoutes is called, because AuthMiddleware reads 
@@ -116,8 +49,8 @@ func TestIntegrationRoutes(t *testing.T) {
 	os.Setenv("APPLICATION_NAME", "TestApp")
 
 	// Initialize real repositories and services
-	userRepo := user.NewUserRepository(pgDB)
-	rtRepo := refresh_token.NewRefreshTokenRepository(rdb)
+	userRepo := user.NewUserRepository(testPostgresDB)
+	rtRepo := refresh_token.NewRefreshTokenRepository(testRedisDB)
 	authService := auth.NewAuthService(userRepo, rtRepo)
 	authController := auth.NewAuthController(authService)
 
@@ -156,13 +89,13 @@ func TestIntegrationRoutes(t *testing.T) {
 			body:   `{"username":"mario","email":"mariorossi@gmail.com","password":"Testtest123","name":"mario","surname":"rossi"}`,
 			setupData: func(ctx context.Context) error {
 				// This ensure user is fresh
-				_, err := pgDB.ExecContext(ctx, "DELETE FROM user_account WHERE email = $1", "mariorossi@gmail.com")
+				_, err := testPostgresDB.ExecContext(ctx, "DELETE FROM user_account WHERE email = $1", "mariorossi@gmail.com")
 				return err
 			},
 			expectedStatus: http.StatusCreated,
 			checkDBDataPresence: func(ctx context.Context) (bool, error) {
 				var exists bool
-				err := pgDB.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM user_account WHERE email = $1)", "mariorossi@gmail.com").Scan(&exists)
+				err := testPostgresDB.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM user_account WHERE email = $1)", "mariorossi@gmail.com").Scan(&exists)
 				return exists, err
 			},
 		},
@@ -173,7 +106,7 @@ func TestIntegrationRoutes(t *testing.T) {
 			body:   `{"email":"luigi@gmail.com","password":"Testtest123"}`,
 			setupData: func(ctx context.Context) error {
 				// Ensure clean state
-				pgDB.ExecContext(ctx, "DELETE FROM user_account WHERE email = $1", "luigi@gmail.com")
+				testPostgresDB.ExecContext(ctx, "DELETE FROM user_account WHERE email = $1", "luigi@gmail.com")
 				// Create user via service to ensure password hashing
 				return authService.Register(ctx, "luigi", "luigi@gmail.com", "Testtest123", "luigi", "verdi")
 			},
@@ -185,7 +118,7 @@ func TestIntegrationRoutes(t *testing.T) {
 			path:   "/api/login/username",
 			body:   `{"username":"peach","password":"Testtest123"}`,
 			setupData: func(ctx context.Context) error {
-				pgDB.ExecContext(ctx, "DELETE FROM user_account WHERE username = $1", "peach")
+				testPostgresDB.ExecContext(ctx, "DELETE FROM user_account WHERE username = $1", "peach")
 				return authService.Register(ctx, "peach", "peach@gmail.com", "Testtest123", "peach", "princess")
 			},
 			expectedStatus: http.StatusOK,

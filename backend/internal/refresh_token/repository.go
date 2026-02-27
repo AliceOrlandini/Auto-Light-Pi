@@ -53,7 +53,7 @@ func (r *repository) CreateOne(ctx context.Context, refreshToken *RefreshToken) 
 		if oldTokenHash then
 			local oldrtKey = "rth:" .. oldTokenHash
 			redis.call("DEL", oldrtKey)
-			redis.call("DEL", ruKey)
+			-- No need to delete ruKey because we overwrite it below
 		end
 
 		-- Insert new values
