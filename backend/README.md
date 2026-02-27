@@ -17,6 +17,7 @@ backend/
    routes/                # API route definitions
    services/              # Business logic layer
    bootstrap/             # Application bootstrapping
+```
 
 In particular, the flow of a request through the backend is as follows:
 ```
@@ -35,22 +36,6 @@ Request
 - **Config**: Manage configuration and environment setup.
 - **Bootstrap**: Application bootstrapping and initialization.
 
-## Environment Variables
-
-Create a `.env` file in the backend root with the following variables:
-
-```
-PORT=8080
-# Application
-APPLICATION_NAME=auto-light-pi
-
-# Database
-DB_DSN="host=localhost user=yourusername dbname=autolightpi port=5432 sslmode=disable"
-
-# JWT Secret Key
-JWT_SECRET="yoursecretkey"
-```
-
 ---
 
 ## Running the Server
@@ -67,7 +52,14 @@ JWT_SECRET="yoursecretkey"
 ---
 
 ## Testing
-Unit and integration tests will be added in the future.
+1. **Run tests:**
+   ```sh
+   go test ./...
+   ```
+2. **Run tests with coverage:**
+   ```sh
+   go test -coverprofile=cover.out ./... && go tool cover -html=cover.out
+   ```
 
 ## License
 
