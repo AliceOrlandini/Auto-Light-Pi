@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -47,12 +48,14 @@ func InitPosgresDB(ctx context.Context) error {
 	postgresDBPass := os.Getenv("POSTGRES_PASSWORD")
 	postgresDBName := os.Getenv("POSTGRES_DB")
 	postgresDBPort := os.Getenv("POSTGRES_PORT")
-	dbDsn := "host=" + postgresDBHost + " user=" + postgresDBUser + " password=" + postgresDBPass + " dbname=" + postgresDBName + " port=" + postgresDBPort + " sslmode=disable"
-	psqlDB, err := sql.Open("postgres", dbDsn)
-	if err != nil {
-		slog.Error("failed to open connection with PostgresDB", "error", err)
-		return err
-	}
+	dbDsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+    postgresDBHost, postgresDBPort, postgresDBUser, postgresDBPass, postgresDBName)
+
+  psqlDB, err := sql.Open("postgres", dbDsn)
+  if err != nil {
+    slog.Error("failed to open connection with PostgresDB", "error", err)
+    return err
+  }
 
 	// check if the postgres server is reachable
 	err = psqlDB.PingContext(ctx)
